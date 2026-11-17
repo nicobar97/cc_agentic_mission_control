@@ -1,5 +1,38 @@
-import { memo, ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Marked } from "marked";
+import { ago, hhmmss, MARK_KIND, useNow } from "../lib";
+
+/** The sparkline tooltip (tracker.py showTip()): follows the cursor, flips at the window edges, hides on any scroll.
+ *  Shared by the agent cards' sparklines and the conversation outline strip. One is mounted per view; the last one
+ *  rendered receives showTip(). `ft` replaces the footer, `rows` lists what an outline bucket holds, `t2` ends a time
+ *  range, and `sticky` keeps it through scrolls (the outline scrolls the chat while you hover it). */
+export type TipState = { k: string; t: string; x: string; n: number; of: number; cx: number; cy: number;
+  ft?: string; t2?: string; rows?: { k: string; x: string }[]; more?: number; sticky?: boolean } | null;
+let setTipGlobal: (t: TipState) => void = () => {};
+export const showTip = (t: TipState) => setTipGlobal(t);
+
+export function Tip() {
+  const [tip, setTip] = useState<TipState>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const cur = useRef<TipState>(null); cur.current = tip;
+  const now = useNow();
+  setTipGlobal = setTip;
+  useEffect(() => { const h = () => { if (!cur.current?.sticky) setTip(null); }; addEventListener("scroll", h, { passive: true, capture: true }); return () => removeEventListener("scroll", h, { capture: true } as any); }, []);
+  useLayoutEffect(() => {   // tracker.py showTip(): follow the cursor, flip at the window edges
+    const el = ref.current; if (!el || !tip) return;
+    const r = el.getBoundingClientRect(), pad = 14;
+    let left = tip.cx + pad, top = tip.cy + pad;
+    if (left + r.width > innerWidth - 8) left = tip.cx - r.width - pad;
+    if (top + r.height > innerHeight - 8) top = tip.cy - r.height - pad;
+    el.style.left = Math.max(8, left) + "px"; el.style.top = Math.max(8, top) + "px";
+  });
+  const k = tip ? MARK_KIND[tip.k] || MARK_KIND.tool : MARK_KIND.tool;
+  return <div ref={ref} className={"tip" + (tip ? " on" : "")} role="tooltip">{tip && <>
+    <div className="th"><span className="sw" style={{ background: k[1] }} />{k[0]}<span className="tm">{hhmmss(tip.t)}{tip.t2 && tip.t2 !== tip.t ? `–${hhmmss(tip.t2)}` : ""} · {ago(tip.t2 || tip.t, now)}</span></div>
+    {tip.rows ? <div className="rows">{tip.rows.map((r, i) => <div key={i} className="rw"><span className="sw" style={{ background: (MARK_KIND[r.k] || MARK_KIND.tool)[1] }} /><span>{r.x}</span></div>)}
+      {tip.more ? <div className="rw more">+ {tip.more} more</div> : null}</div> : <div className="tx">{tip.x}</div>}
+    <div className="ft">{tip.ft ?? `action ${tip.n} of ${tip.of} · click to open in the timeline`}</div></>}</div>;
+}
 
 /** The tracker's ⓘ legend: a small icon whose popover opens on hover or focus (no inline legend rows). */
 export function Info({ children, right, label }: { children: ReactNode; right?: boolean; label?: string }) {

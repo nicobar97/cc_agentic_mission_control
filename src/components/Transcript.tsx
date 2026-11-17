@@ -1,8 +1,9 @@
 // Read-only conversation view: paginated from the end, live-appended over SSE, scroll position preserved.
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, Entry, fmtTok, fmtUsd, go, Head, hhmmss, Page, shortModel, useChangeRev } from "../lib";
+import { api, Entry, fmtTok, fmtUsd, go, Head, hhmmss, Page, shortModel, STATIC, useChangeRev } from "../lib";
 import { Fold, Info, Markdown } from "./bits";
 import { openDiff } from "./Diff";
+import { findSeq, Outline, reducedMotion, visibleSeqs } from "./Outline";
 
 type Props = { p: string; s: string; a?: string; onHead?: (h: Head) => void };
 type St = { entries: Entry[]; start: number; total: number; epoch: number };
@@ -16,7 +17,7 @@ export function Transcript({ p, s, a, onHead }: Props) {
   const [err, setErr] = useState("");
   const [newCount, setNewCount] = useState(0);
   const box = useRef<HTMLDivElement>(null);
-  const pend = useRef<{ kind: "bottom" } | { kind: "prepend"; h: number; top: number } | null>(null);
+  const pend = useRef<{ kind: "bottom" } | { kind: "seek" } | { kind: "prepend"; h: number; top: number } | null>(null);
   const busy = useRef(false), loadingOlder = useRef(false);
   const stRef = useRef(st);
   useEffect(() => { stRef.current = st; }, [st]);
@@ -97,8 +98,44 @@ export function Transcript({ p, s, a, onHead }: Props) {
     if (!el || !pd) return;
     pend.current = null;
     if (pd.kind === "bottom") el.scrollTop = el.scrollHeight;
-    else el.scrollTop = pd.top + (el.scrollHeight - pd.h);
+    else if (pd.kind === "seek") { if (seekTo.current) scrollToSeq(seekTo.current.seq, false); }
+    else {
+      el.scrollTop = pd.top + (el.scrollHeight - pd.h);
+      // an auto-loaded older page cancels a smooth scroll the outline started: land on its target anyway
+      const k = seekTo.current; if (k && performance.now() - k.at < 1500) scrollToSeq(k.seq, false, false);
+    }
   }, [st]);
+
+  // ---------- outline strip: scroll to any entry of the chat, loading older pages first when it isn't loaded yet ----------
+  const [seeking, setSeeking] = useState(false);
+  const seekTo = useRef<{ seq: number; at: number } | null>(null);
+  const scrollToSeq = useCallback((seq: number, smooth: boolean, hl = true) => {
+    const el = box.current; if (!el) return;
+    const n = findSeq(el, seq); if (!n) return;
+    const top = n.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 12;
+    el.scrollTo({ top, behavior: smooth && !reducedMotion() && !STATIC ? "smooth" : "auto" });
+    if (hl) { n.classList.remove("o-hl"); void n.offsetWidth; n.classList.add("o-hl"); window.setTimeout(() => n.classList.remove("o-hl"), 1400); }
+    if (!smooth) { const v = visibleSeqs(el); document.body.dataset.outlineLanded = String(seq); document.body.dataset.outlineTop = v ? String(v[0]) : ""; }
+  }, []);
+  const seek = useCallback(async (seq: number, smooth: boolean) => {
+    const cur = stRef.current; if (!cur) return;
+    seekTo.current = { seq, at: performance.now() };
+    if (seq >= cur.start) { scrollToSeq(seq, smooth); return; }
+    if (loadingOlder.current) return;   // the load in flight scrolls to the latest target when it lands
+    loadingOlder.current = true; setSeeking(true);
+    try {
+      let start = cur.start, acc: Entry[] = [];
+      while (seekTo.current && seekTo.current.seq < start && start > 0) {
+        const r = await api<Page>("/api/transcript", { p, s, a, before: start, limit: 500 });
+        if (r.epoch !== cur.epoch) return;
+        acc = [...r.entries.filter((e) => e.seq < start), ...acc]; start = r.start;
+      }
+      if (acc.length) {
+        pend.current = { kind: "seek" };
+        setSt((o) => { const n = o && { ...o, entries: [...acc.filter((e) => e.seq < o.start), ...o.entries], start: Math.min(start, o.start) }; stRef.current = n; return n; });
+      }
+    } catch (_) {} finally { loadingOlder.current = false; setSeeking(false); }
+  }, [p, s, a, scrollToSeq]);
 
   const onScroll = () => {
     const el = box.current; if (!el) return;
@@ -119,6 +156,7 @@ export function Transcript({ p, s, a, onHead }: Props) {
   const ctx: Ctx = { p, s, a, head, full, loadFull, results: items.results, isAgent: !!a };
   let lastDay = "";
   return (
+    <div className="convo-row">
     <div className="scroll" ref={box} onScroll={onScroll}>
       <div className="convo">
         <div className="older">{st.start > 0
@@ -128,11 +166,13 @@ export function Transcript({ p, s, a, onHead }: Props) {
           const day = it.ts ? new Date(it.ts).toDateString() : "";
           const sep = day && day !== lastDay ? <div className="daysep" key={"d" + it.key}>{new Date(it.ts!).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</div> : null;
           if (day) lastDay = day;
-          return [sep, <Item key={it.key} it={it} ctx={ctx} />];
+          return [sep, it.kind === "single" ? <i hidden key={"o" + it.key} data-seq={it.e!.seq} /> : null, <Item key={it.key} it={it} ctx={ctx} />];
         })}
         {!items.list.length && <div className="empty">No messages yet.</div>}
       </div>
       {newCount > 0 && <div className="jump"><button className="btn" onClick={() => { const el = box.current; if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }); setNewCount(0); }}>↓ {newCount} new</button></div>}
+    </div>
+    <Outline p={p} s={s} a={a} box={box} loaded={`${st.start}/${st.total}`} seek={seek} loading={seeking} />
     </div>
   );
 }
@@ -208,7 +248,7 @@ function AsstTurn({ it, ctx }: { it: It; ctx: Ctx }) {
     <div className={"msg asst" + (pending ? " live" : "")}>
       <div className="who-row"><b>{ctx.isAgent ? "Agent" : "Claude"}</b>{model && <span className="mdl">{shortModel(model)}</span>}
         <span className="ts">{hhmmss(it.ts)}</span>{out ? <span className="ts" title="output tokens and estimated cost of this turn, list API prices">· ✦ {fmtTok(out)} · {fmtUsd(cost)}</span> : null}</div>
-      <div className="bubble">{it.blocks.map((b) => <div className="blk" key={b.seq}><Block e={ctx.full[b.seq] || b} ctx={ctx} /></div>)}</div>
+      <div className="bubble">{it.blocks.map((b) => <div className="blk" key={b.seq} data-seq={b.seq}><Block e={ctx.full[b.seq] || b} ctx={ctx} /></div>)}</div>
     </div>
   );
 }

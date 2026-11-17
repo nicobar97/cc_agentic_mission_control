@@ -175,6 +175,55 @@ def normalize(d, limit=True):
     return out
 
 
+OUTLINE_LABEL = 90
+NOTE_KINDS = {"compact", "command", "cmdout", "interrupt", "summary", "system"}
+
+
+def _plain(s):
+    s = re.sub(r"<system-reminder>[\s\S]*?</system-reminder>", " ", s or "")
+    return tp.short(re.sub(r"<[^>]+>", " ", s), OUTLINE_LABEL)
+
+
+def outline_mark(e):
+    """One entry -> [seq, kind, ts, size, label] for the conversation outline strip, or None (not shown on its own).
+    kind: user · text · think · read/write/shell/result/tool (tool kinds) · error · handback · note."""
+    k, n = e.get("k"), e.get("len") or len(e.get("text") or "")
+    if k == "user":
+        return [e["seq"], "user", e.get("ts"), n, "🖼 image" if e.get("image") else _plain(e.get("text")) or "(empty prompt)"]
+    if k == "text":
+        return [e["seq"], "error" if e.get("apiErr") else "text", e.get("ts"), n, _plain(e.get("text")) or "(empty reply)"]
+    if k == "thinking":
+        txt = _plain(e.get("text"))
+        return [e["seq"], "think", e.get("ts"), n or int((e.get("ms") or 0) / 10), txt or "thought (content not stored in the transcript)"]
+    if k == "tool":
+        size = sum(len(v) if isinstance(v, str) else len(json.dumps(v, ensure_ascii=False)) for v in (e.get("input") or {}).values()) \
+            if isinstance(e.get("input"), dict) else len(str(e.get("input") or ""))
+        return [e["seq"], e.get("kind") or "tool", e.get("ts"), size, tp.short(e.get("desc") or e.get("name") or "tool", OUTLINE_LABEL)]
+    if k == "result":   # only a result with no call in this transcript shows on its own; the rest attach to their call
+        return [e["seq"], "error" if e.get("err") else "result", e.get("ts"), n, "Tool result · " + (_plain(e.get("text")) or "(empty)")]
+    if k == "meta":
+        txt = e.get("text") or ""
+        m = re.search(r'<agent-message from="([\w-]+)"', txt)
+        if m:
+            body = re.sub(r"^\s*Another Claude session sent a message:\s*(\[[^\]]*\]\s*)?", "", _plain(txt))
+            return [e["seq"], "handback", e.get("ts"), n, f"Agent hand-back · {m.group(1)} · " + body]
+        title = "Skill loaded" if txt.startswith("Base directory for this skill") else "System context"
+        return [e["seq"], "note", e.get("ts"), n, f"{title} · " + _plain(txt)]
+    if k in NOTE_KINDS:
+        if k == "command":
+            label = f"{e.get('name') or 'command'} {e.get('args') or ''}".strip()
+        elif k == "interrupt":
+            label = "Interrupted by the user"
+        elif k == "compact":
+            label = "Compacted context"
+        elif k == "system":
+            label = (e.get("sub") or "system") + (" · " + _plain(e.get("text")) if e.get("text") else "")
+        else:
+            label = {"cmdout": "Command output", "summary": "Summary"}[k] + " · " + _plain(e.get("text"))
+        return [e["seq"], "note", e.get("ts"), n, tp.short(label, OUTLINE_LABEL)]
+    return None
+
+
 class Transcript:
     def __init__(self, path):
         self.path = path
@@ -182,6 +231,29 @@ class Transcript:
         self.entries = []
         self.epoch = 0
         self.lock = threading.Lock()
+        self._reset_outline()
+
+    def _reset_outline(self):
+        # the outline grows with the entries (never rebuilt per request); each mark keeps the rev it last changed in
+        self.outline, self.omod, self.orev, self.ocall = [], [], 0, {}   # ocall: tool_use_id -> outline index
+
+    def _outline_add(self, e):
+        k = e.get("k")
+        if k == "result" and e.get("id") in self.ocall:   # attaches to its call: adds its size, turns it red on error
+            i = self.ocall[e["id"]]
+            m = self.outline[i]
+            m[3] += e.get("len") or 0
+            if e.get("err"):
+                m[1], m[4] = "error", tp.short("✗ " + m[4] + " · " + _plain(e.get("text")), OUTLINE_LABEL + 40)
+            self.omod[i] = self.orev
+            return
+        m = outline_mark(e)
+        if not m:
+            return
+        if k == "tool" and e.get("id"):
+            self.ocall[e["id"]] = len(self.outline)
+        self.outline.append(m)
+        self.omod.append(self.orev)
 
     def update(self):
         with self.lock:
@@ -191,6 +263,8 @@ class Transcript:
             reset, lines = self.tail.read(s)
             if reset:
                 self.entries, self.epoch = [], self.epoch + 1
+                self._reset_outline()
+            self.orev += 1
             for off, raw in lines:
                 d = st.parse_line(raw)
                 if not d:
@@ -198,6 +272,14 @@ class Transcript:
                 for e in normalize(d):
                     e["seq"], e["off"] = len(self.entries), off
                     self.entries.append(e)
+                    self._outline_add(e)
+
+    def outline_since(self, rev=0):
+        """Marks added or changed after `rev` (0 = all), with the rev to send next time. Built from the parse cache."""
+        self.update()
+        with self.lock:
+            items = [m for m, r in zip(self.outline, self.omod) if r > rev] if rev else list(self.outline)
+            return {"items": items, "rev": self.orev, "epoch": self.epoch, "total": len(self.entries)}
 
     def page(self, before=None, after=None, limit=150):
         self.update()

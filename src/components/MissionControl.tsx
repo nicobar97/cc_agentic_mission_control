@@ -5,7 +5,8 @@ import {
   Agent, api, attention, ago, fmtDate, fmtDur, fmtTok, fmtUsd, go, hhmmss, KIND, McResp, quietSecs, RunData, RunSummary,
   shortModel, STATIC, sumCost, sumTok, t, useChangeRev, useNow, view,
 } from "../lib";
-import { Info, RunIcon, useFeedHeight } from "./bits";
+import { Info, RunIcon, showTip as setTipGlobal, Tip, useFeedHeight } from "./bits";
+export { Tip };   // the shared cursor tooltip (also used by the conversation outline)
 import { openDiff } from "./Diff";
 
 type Props = { p: string; s: string; run?: string; onMeta?: (m: { runs: number; running: number }) => void };
@@ -192,29 +193,6 @@ function Hero({ d, hist, isPast }: { d: RunData; hist: RunSummary[]; isPast: boo
 }
 
 // ---------- cards ----------
-type TipState = { k: string; t: string; x: string; n: number; of: number; cx: number; cy: number } | null;
-let setTipGlobal: (t: TipState) => void = () => {};
-
-export function Tip() {
-  const [tip, setTip] = useState<TipState>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const now = useNow();
-  setTipGlobal = setTip;
-  useEffect(() => { const h = () => setTip(null); addEventListener("scroll", h, { passive: true, capture: true }); return () => removeEventListener("scroll", h, { capture: true } as any); }, []);
-  useLayoutEffect(() => {   // tracker.py showTip(): follow the cursor, flip at the window edges
-    const el = ref.current; if (!el || !tip) return;
-    const r = el.getBoundingClientRect(), pad = 14;
-    let left = tip.cx + pad, top = tip.cy + pad;
-    if (left + r.width > innerWidth - 8) left = tip.cx - r.width - pad;
-    if (top + r.height > innerHeight - 8) top = tip.cy - r.height - pad;
-    el.style.left = Math.max(8, left) + "px"; el.style.top = Math.max(8, top) + "px";
-  });
-  const k = tip ? KIND[tip.k] || KIND.tool : KIND.tool;
-  return <div ref={ref} className={"tip" + (tip ? " on" : "")} role="tooltip">{tip && <>
-    <div className="th"><span className="sw" style={{ background: k[1] }} />{k[0]}<span className="tm">{hhmmss(tip.t)} · {ago(tip.t, now)}</span></div>
-    <div className="tx">{tip.x}</div><div className="ft">action {tip.n} of {tip.of} · click to open in the timeline</div></>}</div>;
-}
-
 function Spark({ a }: { a: Agent }) {
   const all = a.events || [], ev = all.slice(-36), off = all.length - ev.length, pad = Math.max(0, 36 - ev.length);
   return <div className="spark">

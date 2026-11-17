@@ -60,6 +60,12 @@ export const KIND: Record<string, [string, string]> = {
   shell: ["shell", "var(--c-shell)"], think: ["thinking", "var(--c-think)"],
   result: ["result returned", "var(--c-ok)"], tool: ["tool", "var(--c-tool)"],
 };
+/** The sparkline's KIND plus the conversation entries a chat has and an agent's activity doesn't (outline strip).
+ *  Only existing tokens, so the README contrast table still holds. Mission Control's legend keeps iterating KIND alone. */
+export const MARK_KIND: Record<string, [string, string]> = {
+  ...KIND, user: ["your prompt", "var(--acc-strong)"], text: ["reply", "var(--fg2)"], error: ["error", "var(--bad)"],
+  handback: ["agent hand-back", "var(--c-ok)"], note: ["system note", "var(--mut)"],
+};
 export const when = (epochSec: number) => {
   const d = new Date(epochSec * 1000), now = new Date();
   if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });

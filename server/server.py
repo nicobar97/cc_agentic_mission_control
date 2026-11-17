@@ -186,7 +186,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.events()
             if u.path == "/api/agents":
                 return self.send_json(self.agents_api(q))
-            if u.path in ("/api/transcript", "/api/full", "/api/mc", "/api/diff", "/api/agent-resolve"):
+            if u.path in ("/api/transcript", "/api/full", "/api/mc", "/api/diff", "/api/agent-resolve", "/api/outline"):
                 with STORE.lock:
                     sess = STORE.get(q.get("p"), q.get("s"))
                     if not sess:
@@ -200,6 +200,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.diff(sess, q)
                 if u.path == "/api/agent-resolve":
                     return self.agent_resolve(sess, q)
+                if u.path == "/api/outline":
+                    return self.outline(sess, agent, q)
                 return self.transcript(sess, agent, q, full=u.path == "/api/full")
             if u.path.startswith("/api/"):
                 return self.send_json({"error": "not found"}, 404)
@@ -261,6 +263,16 @@ class Handler(BaseHTTPRequestHandler):
             page["running"] = [{"id": r["id"], "label": r["label"], "first": r["first"]} for run in STORE.session_runs(sess)
                                for r in run["agents"] if r["status"] == "running" and (not agent or r["id"] != agent.aid)] if not agent else []
         return self.send_json(page)
+
+    def outline(self, sess, agent, q):
+        """Every entry of the chat (or agent chat) as one outline mark [seq, kind, ts, size, label], from the parse cache.
+        rev=<n> returns only the marks added or changed since that rev (a tool call changes when its result lands)."""
+        try:
+            rev = int(q.get("rev") or 0)
+        except ValueError:
+            return self.send_json({"error": "bad rev"}, 400)
+        t = TRANSCRIPTS.get(agent.path if agent else sess.path)
+        return self.send_json(t.outline_since(rev))
 
     def mc(self, sess, q):
         with STORE.lock:
