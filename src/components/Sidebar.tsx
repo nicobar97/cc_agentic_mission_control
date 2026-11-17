@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fmtUsd, href, Index, Project, SessionRow, when } from "../lib";
+import { fmtUsd, href, Index, Project, QS, SessionRow, STATIC, useWriteMode, when } from "../lib";
 import { Bot, Info, Logo } from "./bits";
 import { NewChat } from "./Write";
+import { TrashButton, TrashSection } from "./Trash";
 
 const SHOW = 6;
 const STAR_KEY = "mc.starredProjects";   // browser-only: an ordered list of project slugs (no server write)
@@ -101,16 +102,21 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
           {starred.map(([p, rows]) => group(p, rows, true))}
         </>}
         <div className="sec-h"><span>Projects</span><span>
-          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><b>☆</b> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span></Info></span></div>
+          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><b>☆</b> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span><span className="li">In write mode, the trash icon on a row (shown on hover) moves that chat to the macOS Trash, after a confirmation</span></Info></span></div>
         {projects.map(([p, rows]) => group(p, rows, false))}
+        <TrashSection />
       </div>
     </nav>
   );
 }
 
+const HOVER = STATIC ? QS.get("hover") : null;   // screenshots only: show one row's hover state
+
 function Row({ p, s, sel, showProject }: { p: Project; s: SessionRow; sel?: { p?: string; s?: string }; showProject?: boolean }) {
   const on = sel?.p === p.slug && sel?.s === s.id;
+  const write = useWriteMode();
   return (
+    <div className={"chatrow" + (write ? " w" : "") + (HOVER === s.id ? " hov" : "")}>
     <a className={"chat" + (on ? " sel" : "")} href={href({ p: p.slug, s: s.id })} aria-current={on ? "page" : undefined} title={`${s.title}\n${s.prompt}\n${s.cwd}${s.branch ? " · " + s.branch : ""}`}>
       <span style={{ minWidth: 0 }}>
         <b>{s.active && <span className={"pulse" + (s.running ? " busy" : "")} />}<span>{s.title}</span></b>
@@ -118,5 +124,7 @@ function Row({ p, s, sel, showProject }: { p: Project; s: SessionRow; sel?: { p?
       </span>
       <span className="rt">{s.status === "stopped" && <span className="badge stopped" title="the last turn was interrupted">stopped</span>}<span className="cost">{fmtUsd(s.cost)}</span></span>
     </a>
+    {write && <TrashButton p={p.slug} s={s.id} title={s.title} open={on} />}
+    </div>
   );
 }

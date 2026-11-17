@@ -55,6 +55,7 @@ export const view = (a: Agent, now = Date.now()) => (a.status === "running" && q
 export const attention = (a: Agent) => { const v = view(a); return v === "quiet" || v === "failed"; };
 export const ago = (iso?: string | null, now = Date.now()) => { if (!iso) return ""; const s = (now - +t(iso)!) / 1000; return s < 60 ? `${Math.round(s)}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${(s / 3600).toFixed(1)}h ago`; };
 export const agoSecs = (sec: number) => sec < 60 ? `${Math.round(sec)}s ago` : sec < 3600 ? `${Math.round(sec / 60)}m ago` : sec < 86400 ? `${(sec / 3600).toFixed(1)}h ago` : `${Math.round(sec / 86400)}d ago`;
+export const fmtBytes = (n: number) => n >= 1 << 30 ? (n / (1 << 30)).toFixed(1) + " GB" : n >= 1 << 20 ? (n / (1 << 20)).toFixed(1) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : `${n} B`;
 export const KIND: Record<string, [string, string]> = {
   read: ["read / search", "var(--c-read)"], write: ["write / edit", "var(--c-write)"],
   shell: ["shell", "var(--c-shell)"], think: ["thinking", "var(--c-think)"],
@@ -174,7 +175,8 @@ export type RunSnap = { id: string; kind: "new" | "send"; status: "starting" | "
 export type WriteOptions = { models: string[]; modes: string[]; cwds: string[]; home: string; active: number; max: number; bin: boolean;
   session?: { live_elsewhere: boolean; busy: boolean; cwd: string; idle_secs: number } };
 
-let writeOn = (() => { try { return sessionStorage.getItem("mc-write") === "1"; } catch { return false; } })();
+// ?static=1&write=1 (screenshots only): start with write mode on, since a headless browser has an empty sessionStorage
+let writeOn = (() => { if (STATIC && QS.get("write") === "1") return true; try { return sessionStorage.getItem("mc-write") === "1"; } catch { return false; } })();
 const writeSubs = new Set<() => void>();
 export function setWriteMode(on: boolean) {
   writeOn = on; try { sessionStorage.setItem("mc-write", on ? "1" : "0"); } catch (_) {}

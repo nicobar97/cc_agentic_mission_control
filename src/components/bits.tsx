@@ -126,3 +126,6 @@ export function useFeedHeight() {
   });
   return ref;
 }
+export const TrashIcon = ({ size = 14 }: { size?: number }) => (
+  <svg className="ico" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" {...sv}>
+    <path d="M4 7h16M9.5 7V4.8c0-.4.4-.8.8-.8h3.4c.4 0 .8.4.8.8V7M6.5 7l.9 12a2 2 0 0 0 2 1.8h5.2a2 2 0 0 0 2-1.8l.9-12M10 11v6M14 11v6" /></svg>);

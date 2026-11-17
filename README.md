@@ -61,6 +61,8 @@ files. Everything runs on your machine: the server binds to `127.0.0.1`, and the
 - **Live sync.** Server-Sent Events push changes as files grow; only the changed chats are refetched.
 - **Optional write mode.** Off by default. Start a new chat or send a message from the browser, with strict guards
   (see [Write mode and safety](#write-mode-and-safety)).
+- **Trash bin.** In write mode, move a chat you no longer need to the macOS Trash, with a confirmation, a 10 s
+  Undo and a Trash list to restore from. Active chats can't be trashed.
 - **Themes.** Light, Dark and Dim, with WCAG AA contrast and `prefers-reduced-motion` respected.
 
 ## Quick start
@@ -172,8 +174,10 @@ Mission Control is read-only unless you turn write mode on.
   rebinding. There are no CORS headers.
 - Reads are `GET` / `HEAD`. The only accepted `POST` is `/api/write/*`; any other method gets `405`.
 - Ids in API calls are looked up in the index, never joined into paths, and every read stays under `~/.claude/projects`.
-- Mission Control itself never writes, moves or deletes anything under `~/.claude`. It runs Python with `-B` so no
-  `__pycache__` is created. In write mode, only the `claude` CLI it starts writes there, as it always does.
+- Mission Control itself never writes or deletes anything under `~/.claude`. It runs Python with `-B` so no
+  `__pycache__` is created. In write mode, only the `claude` CLI it starts writes there, as it always does. The one
+  exception is the trash bin: in write mode, and only after you confirm, it **moves** a chat's files to the macOS Trash
+  (see [Moving a chat to the Trash](#moving-a-chat-to-the-trash)).
 
 **Write mode** is **off by default**. Toggle **Write mode** in the top bar; it lasts for the current browser tab only,
 and new tabs start read-only. It adds a composer under each chat and a **New chat** button (working directory, model,
@@ -210,6 +214,36 @@ Every write request is checked by the server:
 >   "cleanupPeriodDays": 365
 > }
 > ```
+
+### Moving a chat to the Trash
+
+The trash icon on a sidebar row (write mode only) opens a confirmation dialog. It shows the chat's title, project, last
+activity, messages, agents and workflows, and its size on disk, and says "Moves it to the macOS Trash. You can restore it
+from Finder." **Move to Trash** (Enter) or **Cancel** (Esc).
+- **What moves:** only the transcript `~/.claude/projects/<slug>/<id>.jsonl` and, if it exists, the session folder
+  `~/.claude/projects/<slug>/<id>/` (subagents, workflows, tool results). They go to
+  `~/.Trash/Mission Control/<slug>/<id>/`, under the same names, or to `<id>-YYYYmmdd-HHMMSS/` if that name is taken.
+  Nothing else under `~/.claude` (file-history, todos, settings, memory) is touched.
+- **Never deleted.** It uses `os.rename`, or `shutil.move` across volumes. Mission Control never empties the Trash and
+  has no unlink or rmdir: a Trash entry emptied by a restore stays as an empty folder.
+- **Undo.** A "Moved to Trash · Undo" toast stays for 10 s. A **Trash** section at the bottom of the sidebar lists what
+  Mission Control has trashed, each with **Restore**. Both move the files back to their exact original paths, and refuse
+  if anything now exists at either path. Finder's "Put Back" doesn't know these files, because Finder didn't trash them;
+  dragging the folder's contents back works.
+- **Refused by the server**, with the reason shown in the dialog:
+  - an active chat (its transcript, or any file of its session folder, changed in the last 5 min, the "Active now" rule);
+  - a chat Mission Control is running a message in, or forking;
+  - a session id that isn't a UUID, a project slug that isn't an existing folder directly under `~/.claude/projects`
+    (so no `..` or `/`), paths whose real location leaves `~/.claude/projects/<slug>/`, and a transcript or session
+    folder that is a symlink.
+
+  The chat that is open in this tab can't be trashed: its button is disabled.
+- **Same guards as every write:** `POST /api/write/*` only (GET gets 405), the `X-MC-Token`, the own-Origin check and
+  the Host check.
+- **After the move**, the server drops the chat from its index, run cache and parsed transcripts, and pushes a `change`
+  event: it leaves the sidebar, Home and the counts. A tab that still had it open shows "This chat was moved to the Trash",
+  with Restore in write mode.
+- **Logs:** only the session id, the slug and the result (for example `refused-active`).
 
 ## Keyboard shortcuts
 
@@ -278,7 +312,6 @@ new colours. Anything that writes must go through `POST /api/write/*` and `serve
 ## Roadmap
 
 - A "working" indicator in the chat view
-- A trash bin for chats
 - Screenshots made from demo data
 - Tests and CI for the server's parsing and safety rules
 
