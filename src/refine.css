@@ -334,3 +334,56 @@ pre.diff-new{background:var(--d-add-bg);border-color:transparent}
   .mcwrap .main>aside.panel .feed,.home .main>aside.panel .feed{flex:1 1 auto;min-height:0;max-height:none}
 }
 .mcwrap,.home{padding-bottom:16px}
+
+/* ---------- write mode: move a chat to the Trash (row button, confirm dialog, Undo toast, Trash list) ---------- */
+.chatrow{position:relative}
+.trashbtn{all:unset;box-sizing:border-box;position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;display:grid;place-items:center;
+  border-radius:var(--r-sm);color:var(--fg2);background:var(--hover);cursor:pointer;opacity:0;pointer-events:none;
+  transition:opacity var(--dur) ease-out,color var(--dur) ease-out,background var(--dur) ease-out}
+.chatrow:hover .trashbtn,.chatrow:focus-within .trashbtn,.chatrow.hov .trashbtn{opacity:1;pointer-events:auto}
+.chatrow.hov .chat{background:var(--hover)}
+.chatrow.w:hover .chat .rt,.chatrow.w:focus-within .chat .rt,.chatrow.w.hov .chat .rt{visibility:hidden}
+.trashbtn:hover{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,var(--hover))}
+.trashbtn:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.chatrow:hover .trashbtn:disabled,.chatrow:focus-within .trashbtn:disabled,.chatrow.hov .trashbtn:disabled{opacity:.45;cursor:not-allowed;color:var(--mut);background:var(--hover)}
+@media (hover:none){.trashbtn{opacity:1;pointer-events:auto}.chatrow.w .chat .rt{visibility:hidden}}
+.btn.danger{background:var(--bad);color:var(--bad-ink);border-color:transparent;font-weight:600;padding:6px 12px}
+.btn.danger:hover{background:color-mix(in srgb,var(--bad) 88%,var(--fg))}
+.btn.danger:disabled{opacity:.45}
+.btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.scrim.tscrim{z-index:40}
+.tdlg{position:fixed;inset:16vh 0 auto 0;margin:0 auto;width:min(480px,calc(100vw - 32px));box-sizing:border-box;z-index:41;background:var(--raised);
+  border:1px solid var(--bd);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);padding:16px 18px 14px;color:var(--fg);animation:in .16s var(--ease) both}
+.tdlg-h{display:flex;align-items:center;gap:10px}
+.tdlg-h h2{margin:0;font-size:var(--fs-lg);font-weight:600;text-transform:none;letter-spacing:normal;color:var(--fg)}
+.tdlg-ico{flex:none;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent)}
+.tdlg-title{margin:14px 0 10px;font-size:var(--fs-md);font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.tdlg-facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 16px;margin:0;font-size:var(--fs-sm);font-variant-numeric:tabular-nums;
+  padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r-md);background:var(--bg2)}
+.tdlg-facts dt{color:var(--mut)}
+.tdlg-facts dd{margin:0;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tdlg-d{margin:12px 0;font-size:var(--fs-md);color:var(--fg);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tdlg .cnote{margin:0 0 4px}
+.tdlg-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.toast{position:fixed;left:16px;bottom:16px;z-index:42;display:flex;align-items:center;gap:10px;max-width:min(380px,calc(100vw - 32px));box-sizing:border-box;
+  padding:10px 10px 12px 12px;background:var(--raised);border:1px solid var(--bd);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);overflow:hidden;animation:in .16s var(--ease) both}
+.toast .tdlg-ico{width:24px;height:24px}
+.toast .tmsg{display:flex;flex-direction:column;min-width:0;flex:1;font-size:var(--fs-md)}
+.toast .tmsg b{font-weight:600}
+.toast .tmsg small{color:var(--mut);font-size:var(--fs-sm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast.err .tmsg small{white-space:normal;color:var(--fg2)}
+.btn.undo{color:var(--acc);font-weight:600}
+.toast .tbar{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--acc);transform-origin:left;animation:tbar linear forwards}
+.toast.ok .tbar{background:var(--ok)}.toast.err .tbar{background:var(--bad)}
+@keyframes tbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.trash-tg{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border-radius:var(--r-sm)}
+.trash-tg:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.trash-tg .chev{font-size:9px;transition:transform var(--dur) ease-out}
+.trashsec.closed .trash-tg .chev{transform:rotate(-90deg)}
+.trow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 10px;border-radius:var(--r-md)}
+.trow:hover{background:var(--hover)}
+.trow b{display:block;font-size:var(--fs-md);font-weight:500;color:var(--fg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow small{display:block;font-size:var(--fs-sm);color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty.gone{display:flex;gap:12px;align-items:flex-start;text-align:left;max-width:600px;margin:32px auto;color:var(--fg2)}
+.empty.gone b{color:var(--fg);font-size:var(--fs-lg);font-weight:600}
+.empty.gone p{margin:6px 0 12px}

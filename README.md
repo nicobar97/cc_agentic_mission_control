@@ -1,6 +1,7 @@
 # Mission Control
 
-A local, read-only web app that watches Claude Code sessions live: every chat, its subagents and its workflows.
+A local web app that watches Claude Code sessions live: every chat, its subagents and its workflows. It is read-only
+unless you turn on write mode (below).
 Mission Control per chat is a React port of the "Agent Mission Control" tracker
 (`~/.claude/skills/feature-delivery/scripts/tracker.py`), with the same design, rules and prices.
 
@@ -90,7 +91,9 @@ Headless screenshots: add `?static=1`, because an open EventSource keeps Chrome'
   - The combined diff covers the last unbroken stretch of history and says where it starts.
 
 Deep links (hash routes): `#/s/<project-slug>/<session-id>`, `…?tab=mc&run=<run-id>`, `…/a/<agent-id>`.
-`?static=1` (one fetch, no SSE) and `?theme=light|dark` help with screenshots.
+`?static=1` (one fetch, no SSE) and `?theme=light|dark` help with screenshots. With `static=1` only, `write=1` starts in
+write mode, `hover=<session-id>` shows that row's hover state, `trash=<slug>/<session-id>` opens the Trash dialog (a dry
+run, nothing moves), `toast=demo` shows a sample Undo toast and `trashlist=1` opens the sidebar's Trash list.
 
 ## How it works
 
@@ -112,6 +115,7 @@ Deep links (hash routes): `#/s/<project-slug>/<session-id>`, `…?tab=mc&run=<ru
 Toggle **✎ Write mode** in the top bar. It lasts for the current tab only, and new tabs start read-only. With it on:
 - a composer appears under each chat: Enter sends, Shift+Enter adds a new line, and there are model and permission-mode selectors;
 - the sidebar gets **＋ New chat**, with a working-directory picker (recent project folders, or type a path), model, mode and first prompt. The UI selects the new chat as soon as its transcript appears.
+- each sidebar chat gets a **trash icon** on hover or focus, to move that chat to the macOS Trash (see "Moving a chat to the Trash").
 
 A "Claude is working…" panel streams the run's text and tool calls, with **■ Stop**, which ends that process group. The reply lands in the transcript, which the existing sync shows in place.
 
@@ -136,6 +140,36 @@ Safety rules:
 - **Limits:** one run per chat, at most 3 at once.
 - **Environment:** inherited minus `MC_*` and the variables that tie a process to a parent Claude Code session (`CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_MESSAGING_*`, `CLAUDE_PID`, …).
 - **Logs:** only metadata (run, session id, cwd, mode, model, exit code), never prompts or output.
+
+### Moving a chat to the Trash
+
+The trash icon on a sidebar row (write mode only) opens a confirmation dialog. It shows the chat's title, project, last
+activity, messages, agents and workflows, and its size on disk, and says "Moves it to the macOS Trash. You can restore it
+from Finder." **Move to Trash** (Enter) or **Cancel** (Esc).
+- **What moves:** only the transcript `~/.claude/projects/<slug>/<id>.jsonl` and, if it exists, the session folder
+  `~/.claude/projects/<slug>/<id>/` (subagents, workflows, tool results). They go to
+  `~/.Trash/Mission Control/<slug>/<id>/`, under the same names, or to `<id>-YYYYmmdd-HHMMSS/` if that name is taken.
+  Nothing else under `~/.claude` (file-history, todos, settings, memory) is touched.
+- **Never deleted.** It uses `os.rename`, or `shutil.move` across volumes. Mission Control never empties the Trash and
+  has no unlink or rmdir: a Trash entry emptied by a restore stays as an empty folder.
+- **Undo.** A "Moved to Trash · Undo" toast stays for 10 s. A **Trash** section at the bottom of the sidebar lists what
+  Mission Control has trashed, each with **Restore**. Both move the files back to their exact original paths, and refuse
+  if anything now exists at either path. Finder's "Put Back" doesn't know these files, because Finder didn't trash them;
+  dragging the folder's contents back works.
+- **Refused by the server**, with the reason shown in the dialog:
+  - an active chat (its transcript, or any file of its session folder, changed in the last 5 min, the "Active now" rule);
+  - a chat Mission Control is running a message in, or forking;
+  - a session id that isn't a UUID, a project slug that isn't an existing folder directly under `~/.claude/projects`
+    (so no `..` or `/`), paths whose real location leaves `~/.claude/projects/<slug>/`, and a transcript or session
+    folder that is a symlink.
+
+  The chat that is open in this tab can't be trashed: its button is disabled.
+- **Same guards as every write:** `POST /api/write/*` only (GET gets 405), the `X-MC-Token`, the own-Origin check and
+  the Host check.
+- **After the move**, the server drops the chat from its index, run cache and parsed transcripts, and pushes a `change`
+  event: it leaves the sidebar, Home and the counts. A tab that still had it open shows "This chat was moved to the Trash",
+  with Restore in write mode.
+- **Logs:** only the session id, the slug and the result (for example `refused-active`).
 
 > **Note: transcripts older than 30 days.** Every `claude` start, interactive or headless (including Mission Control's runs), applies Claude Code's own `cleanupPeriodDays` (default 30) and deletes older transcripts under `~/.claude/projects`. Raise it in `~/.claude/settings.json` if you want to keep them.
 
@@ -218,15 +252,15 @@ WCAG AA, computed on every resting layer of each theme. Text needs at least 4.5:
 
 ## Safety (read side)
 
-- It binds to `127.0.0.1` only. Reads are GET/HEAD; writes are the guarded `POST /api/write/*` above; everything else gets a 405.
+- It binds to `127.0.0.1` only. Reads are GET/HEAD; writes are the guarded `POST /api/write/*` above, in write mode only; everything else gets a 405.
 - There are no CORS headers, and the `Host` header must be `127.0.0.1` or `localhost`, which blocks DNS rebinding.
-- Ids in API calls are looked up in the index, never joined into paths from user input, and every read is checked to stay under `~/.claude/projects`.
-- Mission Control itself never writes, moves or deletes anything under `~/.claude`; in write mode only the `claude` CLI it starts does, as it always does. It runs with `-B` / `PYTHONDONTWRITEBYTECODE`, and it copies the tracker logic rather than importing it, so no `__pycache__` lands there.
+- Ids in API calls are looked up in the index, never joined into paths from user input, and every read is checked to stay under `~/.claude/projects`. The only other folder it reads is its own `~/.Trash/Mission Control/` (the Trash list and the "moved to the Trash" notice); it never lists `~/.Trash` itself.
+- Mission Control itself never writes or deletes anything under `~/.claude`. In write mode, and only when you confirm it, it **moves a chat to the macOS Trash** (its transcript and session folder, see "Moving a chat to the Trash") and moves it back on Undo or Restore. Otherwise only the `claude` CLI it starts writes there, as it always does. It runs with `-B` / `PYTHONDONTWRITEBYTECODE`, and it copies the tracker logic rather than importing it, so no `__pycache__` lands there.
 - The UI bundle is fully local, with no CDN at runtime. Its dependencies are React, `marked`, Vite and TypeScript.
 
 ## API
 
-Read (GET):
+Read (GET), plus `/api/trash-state?p&s` (was this chat moved to the Trash by Mission Control?):
 
 | Path | |
 |---|---|
@@ -239,4 +273,6 @@ Read (GET):
 | `/api/diff?p&s&path[&run][&change=i\|combined=1]` | the changes to one file, and one rendered diff |
 | `/api/events` | Server-Sent Events: `hello`, `change`, `runs` (a write-mode run changed; no content), `ping` (every 5 s) |
 
-Write (POST, `X-MC-Token` plus own Origin, JSON body): `/api/write/options`, `/api/write/new`, `/api/write/send` (`fork: true` to fork), `/api/write/stop`, `/api/write/runs`.
+Write (POST, `X-MC-Token` plus own Origin, JSON body): `/api/write/options`, `/api/write/new`, `/api/write/send` (`fork: true` to fork), `/api/write/stop`, `/api/write/runs`,
+`/api/write/trash-info` (`p`, `s`: the dialog's facts and a dry run), `/api/write/trash` (`p`, `s`), `/api/write/restore` (`p`, `entry`), `/api/write/trashed` (the Trash list).
+`MC_TRASH` moves the Trash folder elsewhere for a test server, like `MC_ROOT` for the projects.

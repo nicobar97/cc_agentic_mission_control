@@ -256,3 +256,9 @@ class TranscriptCache:
             while len(self.items) > self.size:
                 self.items.popitem(last=False)
             return t
+
+    def drop(self, paths, prefix=None):
+        """Forget parsed transcripts (a chat moved to the Trash): the given paths and anything under prefix."""
+        with self.lock:
+            for k in [k for k in self.items if k in paths or (prefix and k.startswith(prefix))]:
+                del self.items[k]
