@@ -1,0 +1,7 @@
+node_modules/
+dist/
+run.log
+*.pid
+__pycache__/
+screenshots/
+.scratch/

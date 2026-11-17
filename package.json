@@ -1,0 +1,25 @@
+{
+  "name": "mission-control",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Local, read-only observer of Claude Code sessions, subagents and workflows.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc --noEmit && vite build",
+    "start": "npm run build && PYTHONDONTWRITEBYTECODE=1 python3 -B server/server.py --static dist",
+    "serve": "PYTHONDONTWRITEBYTECODE=1 python3 -B server/server.py --static dist"
+  },
+  "dependencies": {
+    "marked": "^14.1.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.21"
+  }
+}
