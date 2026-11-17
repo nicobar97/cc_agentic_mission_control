@@ -9,9 +9,9 @@ import { Info, RunIcon, showTip as setTipGlobal, Tip, useFeedHeight } from "./bi
 export { Tip };   // the shared cursor tooltip (also used by the conversation outline)
 import { openDiff } from "./Diff";
 
-type Props = { p: string; s: string; run?: string; onMeta?: (m: { runs: number; running: number }) => void };
+type Props = { p: string; s: string; run?: string; onMeta?: (m: { runs: number; running: number }) => void; chatCost?: number };
 
-export function MissionControl({ p, s, run, onMeta }: Props) {
+export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
   const rev = useChangeRev(p, s);
   const [resp, setResp] = useState<McResp | null>(null);
   const [err, setErr] = useState("");
@@ -94,7 +94,7 @@ export function MissionControl({ p, s, run, onMeta }: Props) {
           </div>
         </div>
       </header>
-      <Hero d={d} hist={H} isPast={isPast} />
+      <Hero d={d} hist={H} isPast={isPast} chatCost={chatCost} />
       {d.phases.length > 0 && <>
         <h2><span>Phases<Info label="Legend: phases"><span className="li"><b>Ring</b> = share of the phase's agents that are done</span><span className="li">Click a phase to show only its agents and activity; click again to clear</span></Info></span></h2>
         <section className="phases">{d.phases.map((ph) => { const pc = ph.total ? Math.round(ph.done * 100 / ph.total) : 0;
@@ -161,7 +161,7 @@ const WallClock = ({ from, to, live }: { from: number; to: number; live: boolean
 };
 
 // tracker.py hero(): the same tiles, hints and figures
-function Hero({ d, hist, isPast }: { d: RunData; hist: RunSummary[]; isPast: boolean }) {
+function Hero({ d, hist, isPast, chatCost }: { d: RunData; hist: RunSummary[]; isPast: boolean; chatCost?: number }) {
   const A = d.agents, done = A.filter((a) => a.status === "done").length, run = A.filter((a) => a.status === "running").length, att = A.filter(attention).length;
   const tok = A.reduce((s, a) => s + (a.tokens || 0), 0), tools = A.reduce((s, a) => s + (a.tools || 0), 0);
   const firsts = A.map((a) => a.first).filter(Boolean).map((x) => +t(x)!), lasts = A.map((a) => a.last).filter(Boolean).map((x) => +t(x)!);
@@ -186,8 +186,16 @@ function Hero({ d, hist, isPast }: { d: RunData; hist: RunSummary[]; isPast: boo
       <Stat k="Cost" hint={`Estimated at list API prices per model. Input ${fmtUsd(sumCost(A, "input"))} · output ${fmtUsd(sumCost(A, "output"))} · cache write ${fmtUsd(sumCost(A, "cache_write"))} · cache read ${fmtUsd(sumCost(A, "cache_read"))}. A subscription plan bills differently.${A.some((a) => !a.priced) ? " Some models have no price: their part is excluded." : ""}`}>{fmtUsd(totalCost)}</Stat>
       <Stat k="Wall clock" hint="from the first agent start to now / the end">
         {firsts.length ? <WallClock from={Math.min(...firsts)} to={Math.max(...lasts)} live={!d.finished && !isPast} /> : "0m00s"}</Stat>
-      {hist.length > 1 && <Stat k="All runs" hint={`Every run of this chat: ${fmtTok(hist.reduce((s, r) => s + (r.tokens || 0), 0))} tokens (input, output, cache) and ${hist.reduce((s, r) => s + (r.agents || 0), 0)} agents. Open 🕘 to switch run.`}>
-        {fmtUsd(hist.reduce((s, r) => s + (r.cost || 0), 0))}<span className="sub"> · {hist.length} runs</span></Stat>}
+      {(() => {
+        const runsCost = hist.reduce((n, r) => n + (r.cost || 0), 0), runsTok = hist.reduce((n, r) => n + (r.tokens || 0), 0);
+        const nAg = hist.reduce((n, r) => n + (r.agents || 0), 0);
+        return <>
+          {hist.length > 1 && <Stat k="Agents · all runs" hint={`Every agent run of this chat: ${hist.length} runs, ${nAg} agents, ${fmtTok(runsTok)} tokens (input, output, cache). The main conversation is counted separately in "This chat". Open 🕘 to switch run.`}>
+            {fmtUsd(runsCost)}<span className="sub"> · {hist.length} runs</span></Stat>}
+          {chatCost != null && <Stat k="This chat" hint="The main conversation itself, without its agents: every message of the chat transcript, deduped per message id and priced per model at list API prices">{fmtUsd(chatCost)}</Stat>}
+          {chatCost != null && <Stat k="Chat total" hint={`This chat ${fmtUsd(chatCost)} + its agents ${fmtUsd(runsCost)}. The same figure as the chat's row in the sidebar.`}>{fmtUsd(chatCost + runsCost)}</Stat>}
+        </>;
+      })()}
     </section>
   );
 }

@@ -31,7 +31,7 @@ export default function App() {
   useEffect(() => { window.clearTimeout(timer.current); timer.current = window.setTimeout(loadIdx, anyRev ? 400 : 0); }, [anyRev, loadIdx]);
   useEffect(() => { if (STATIC) return; const i = setInterval(loadIdx, 30000); return () => clearInterval(i); }, [loadIdx]);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => { if (e.key === "t" && !(document.activeElement instanceof HTMLInputElement) && !e.metaKey && !e.ctrlKey) toggleTheme(); };
+    const k = (e: KeyboardEvent) => { const el = document.activeElement as HTMLElement | null; const typing = !!el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el.isContentEditable); if (e.key === "t" && !typing && !e.metaKey && !e.ctrlKey) toggleTheme(); };
     addEventListener("keydown", k); return () => removeEventListener("keydown", k);
   }, []);
   useEffect(() => {
@@ -107,7 +107,7 @@ function SessionView({ route, idx }: { route: Route; idx: Index | null }) {
           <button className={tab === "mc" ? "on" : ""} onClick={() => go({ p, s, tab: "mc" })}><Logo size={13} /> Mission Control<span className="n" title="subagents and workflow agents"><Bot /> {nAgents}</span>{row?.running ? <span className="n" style={{ color: "var(--run)" }} title="running">● {row.running}</span> : null}</button>
         </div></div>
       </div>
-      {tab === "mc" ? <div className="scroll"><MissionControl p={p} s={s} run={route.run} onMeta={onMeta} /></div>
+      {tab === "mc" ? <div className="scroll"><MissionControl p={p} s={s} run={route.run} onMeta={onMeta} chatCost={row?.cost_main} /></div>
         : <div className="convo-col"><Transcript key={a || "main"} p={p} s={s} a={a} onHead={setHead} />{!a && <Composer p={p} s={s} />}</div>}
     </>
   );
