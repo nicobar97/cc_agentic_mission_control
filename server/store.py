@@ -12,6 +12,7 @@ import threading
 import time
 
 import tracker_port as tp
+import status as stx
 
 # MC_ROOT lets a test server read a scratch copy instead (never used to write anything)
 ROOT = os.path.realpath(os.environ.get("MC_ROOT") or os.path.expanduser("~/.claude/projects"))
@@ -82,9 +83,13 @@ class LinkScan:
         self.agent_of = {}  # tool_use_id -> agent id (from the result)
         self.errors = set()
         self.mentions = set()  # agent ids named by hand-back notes (<agent-message from="...">)
+        self.killed = {}       # task id -> epoch of its <status>killed</status> notification
 
     def feed(self, d):
         t = d.get("type")
+        for tid, stt, at in stx.notifications(d):
+            if stt == "killed":
+                self.killed[tid] = max(self.killed.get(tid) or 0, at or 0)
         msg = d.get("message") if isinstance(d.get("message"), dict) else {}
         if t == "assistant":
             for b in msg.get("content") or []:
@@ -125,10 +130,12 @@ class MainInfo:
         self.first_ts = self.last_ts = None
         self.sidechain_assistant = 0
         self.links = LinkScan()
+        self.turn = stx.TurnState()
 
     def feed(self, d):
         t = d.get("type")
-        if t in ("assistant", "user"):
+        self.turn.feed(d)
+        if t in ("assistant", "user", "queue-operation"):
             self.links.feed(d)
         if d.get("timestamp"):
             self.first_ts = self.first_ts or d["timestamp"]
@@ -172,6 +179,7 @@ class AgentFile:
         self.tail = Tail(path)
         self.state = tp.AgentState()
         self.links = LinkScan()
+        self.turn = stx.TurnState()
         self.meta, self.meta_sig = {}, None
         self.mtime = 0.0
 
@@ -184,11 +192,12 @@ class AgentFile:
         if self.tail.changed(st):
             reset, lines = self.tail.read(st)
             if reset:
-                self.state, self.links = tp.AgentState(), LinkScan()
+                self.state, self.links, self.turn = tp.AgentState(), LinkScan(), stx.TurnState()
             for _off, raw in lines:
                 d = parse_line(raw)
                 if d:
                     self.state.feed(d)
+                    self.turn.feed(d)
                     self.links.feed(d)
             self.mtime = st.st_mtime
             changed = True
@@ -338,9 +347,14 @@ class Session:
             cands.append((wf, j, ag, bool(j and j.state.exists)))
         for a in sorted((a for a in self.agents.values() if not a.wf), key=lambda a: a.path):
             cands.append((f"agent-{a.aid}", None, [(a.aid, a.meta, a.state)], False))
+        killed = {}
+        for scan in [self.info.links] + [a.links for a in self.agents.values()]:
+            for tid, at in scan.killed.items():
+                killed[tid] = max(killed.get(tid) or 0, at)
+        stops = {a.aid: r for a in self.agents.values() for r in [stx.agent_stop(a.meta, a.turn, killed.get(a.aid))] if r}
         out, seen = [], set()
         for key, j, ag, is_wf in cands:
-            d = tp.collect(key, j.state if j else None, ag, past=True, work=cwd, is_workflow=is_wf, now=now)
+            d = tp.collect(key, j.state if j else None, ag, past=True, work=cwd, is_workflow=is_wf, now=now, stops=stops)
             ids = {r["id"] for r in d["agents"]}
             if not ids or ids & seen:   # tracker.py: backfill() dedupes runs by agent id
                 continue
@@ -451,11 +465,12 @@ class Store:
                         for mid, day in st.usage_day.items():
                             if day == today:
                                 day_usage[mid] = st.usage[mid]   # deduped per message id across every file
-                    active = now - s.mtime < ACTIVE_SECS
+                    status = stx.chat_status(s.info.turn, s.mtime, now, ACTIVE_SECS)   # the shared status rule
+                    active = (now - s.mtime < ACTIVE_SECS and status != "stopped") or running > 0
                     active_chats += active
                     running_agents += running
                     rows.append({"id": s.id, "title": s.info.title(), "prompt": s.info.first_prompt,
-                                 "mtime": s.mtime, "active": active, "msgs": s.info.prompts + len(s.info.msg_ids),
+                                 "mtime": s.mtime, "active": active, "status": status, "msgs": s.info.prompts + len(s.info.msg_ids),
                                  "prompts": s.info.prompts, "agents": len(s.agents), "workflows": len(s.journals),
                                  "running": running, "cost": round(i["cost_total"] + agent_cost, 4),
                                  "cost_main": i["cost_total"], "tokens": sum(i["token_breakdown"].values()) + agent_tok,

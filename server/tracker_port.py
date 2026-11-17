@@ -271,7 +271,7 @@ def deliverables(agent_states, cwd):
     return out
 
 
-def collect(run_key, journal, agents, title="", icon="", past=True, work="", is_workflow=False, now=None):
+def collect(run_key, journal, agents, title="", icon="", past=True, work="", is_workflow=False, now=None, stops=None):
     """tracker.py: collect(). One run's payload.
 
     journal: JournalState or None (a plain agent has none); agents: [(aid, meta dict, AgentState)] for every
@@ -299,8 +299,6 @@ def collect(run_key, journal, agents, title="", icon="", past=True, work="", is_
         i = st.info()
         if a["status"] == "running" and (meta.get("finished") or any(e["kind"] == "result" for e in i["events"])):
             a["status"] = "done"
-        elif a["status"] == "running" and meta.get("stoppedByUser"):
-            a["status"] = "stopped"
         # Extension (not in tracker.py): a plain agent resumed after its hand-back (SendMessage) has activity after
         # its last result event; it is running again until it hands back once more (or goes silent for 45 min).
         if a["status"] == "done" and aid not in journal_ids:
@@ -308,6 +306,11 @@ def collect(run_key, journal, agents, title="", icon="", past=True, work="", is_
             if res and res[-1] < len(i["events"]) - 1 and (i["events"][-1]["t"] or "") > (i["events"][res[-1]]["t"] or ""):
                 a["status"] = "running"
                 a["resumed"] = True
+        # Extension: status.agent_stop() (stoppedByUser, a killed notification, an interrupted transcript) wins over
+        # "fresh file, so running"; without stops, the tracker's stoppedByUser rule.
+        why = (stops or {}).get(aid) if stops is not None else ("stopped by the user" if meta.get("stoppedByUser") else None)
+        if a["status"] == "running" and why:
+            a["status"], a["stop"] = "stopped", why
         rows.append({**a, "id": aid, "tools": i["tools"], "tokens": i["tokens"], "first": iso(i["first"]),
                      "token_breakdown": i["token_breakdown"], "cost": i["cost"], "cost_total": i["cost_total"],
                      "priced": i["priced"], "models": i["models"],
@@ -318,7 +321,7 @@ def collect(run_key, journal, agents, title="", icon="", past=True, work="", is_
     feed.sort(key=lambda x: x["t"], reverse=True)
     lasts = [ts(r["last"]) for r in rows if r["last"]]
     idle = (now - max(lasts)).total_seconds() if lasts else 0
-    if rows and not finished and all(r["status"] != "running" for r in rows) and idle > 120:
+    if rows and not finished and all(r["status"] != "running" for r in rows) and (idle > 120 or any(r.get("stop") for r in rows)):
         finished = True  # the journal does not always record a workflow-completed line
     if past and rows and not finished and idle > 2700:
         finished = True  # nothing for 45 min and no finish signal: the run was interrupted
