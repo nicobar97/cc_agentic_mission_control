@@ -1,242 +1,281 @@
 # Mission Control
 
-A local, read-only web app that watches Claude Code sessions live: every chat, its subagents and its workflows.
-Mission Control per chat is a React port of the "Agent Mission Control" tracker
-(`~/.claude/skills/feature-delivery/scripts/tracker.py`), with the same design, rules and prices.
+**A local web UI that watches Claude Code work, live: chats, subagents, workflows and cost.**
 
-## Run
+Mission Control reads the transcripts Claude Code already writes under `~/.claude/projects` and turns them into a
+browsable, live-updating dashboard. You get every conversation with its tool calls, git-style diffs of the files Claude
+changed, a dashboard of each chat's agents and workflows, and an estimate of what it all cost. It is meant for people who
+run several Claude Code sessions or long multi-agent workflows and want to see what is happening without tailing JSONL
+files. Everything runs on your machine: the server binds to `127.0.0.1`, and the UI loads nothing from the network.
+
+![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-3776AB)
+![Node 20+](https://img.shields.io/badge/node-20%2B-339933)
+![React 18](https://img.shields.io/badge/react-18-61DAFB)
+![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
+![Local only](https://img.shields.io/badge/network-local%20only-555555)
+![License: not yet chosen](https://img.shields.io/badge/license-not%20yet%20chosen-lightgrey)
+
+<!-- Screenshot placeholder: add one made from demo data only (start the server with MC_ROOT pointing at a scratch
+     copy of synthetic transcripts). Never use real chats. -->
+
+> Mission Control is an unofficial community project. It is not affiliated with or endorsed by Anthropic.
+
+## Contents
+
+- [Highlights](#highlights)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [How it works](#how-it-works)
+- [Write mode and safety](#write-mode-and-safety)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+- [Project structure](#project-structure)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+## Highlights
+
+- **Chats sidebar.** Projects grouped by folder, with their chats. **Active now** at the top (anything that changed in
+  the last 5 minutes), then **Starred** projects you pin and reorder, then the rest, newest first. Each row shows the
+  title, time, message count, agent count and cost. Search with `⌘K`.
+- **Conversation view.** User and assistant messages as markdown, collapsed thinking, every tool call with its input and
+  a collapsible result, compaction and command notes. Older pages load as you scroll up; new lines stream in live.
+- **Git-style diffs.** For any file a chat wrote: unified or split view, hunks with line gutters, "this change" or "all
+  changes combined", and "Copy patch" that `git apply` accepts. Diffs are rebuilt from the transcript; your files are
+  never read.
+- **Mission Control dashboard.** Per chat: each workflow or plain agent is a run, with stat tiles, phase rings, agent
+  cards with live elapsed time and activity sparklines, a live feed, deliverables, a run switcher and a detail drawer
+  with the cost table and timeline.
+- **Agents home page.** Every agent across all chats: running now, and recently finished (last 24 h) with the first
+  line of each final report.
+- **Agent Tasks menu.** A chat's subagents and workflows as tasks, with status, agent count, tokens and cost; jump to
+  any agent's own transcript.
+- **Cost and tokens.** Today's cost and tokens across every chat and agent, in the top bar.
+- **Live sync.** Server-Sent Events push changes as files grow; only the changed chats are refetched.
+- **Optional write mode.** Off by default. Start a new chat or send a message from the browser, with strict guards
+  (see [Write mode and safety](#write-mode-and-safety)).
+- **Themes.** Light, Dark and Dim, with WCAG AA contrast and `prefers-reduced-motion` respected.
+
+## Quick start
+
+**Requirements**
+
+- macOS or Linux (write mode uses POSIX process groups; Windows is not supported)
+- Python 3.9 or newer (standard library only, no `pip install`)
+- Node.js 20 or newer, and npm
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed, with some sessions under `~/.claude/projects`
+
+**Install and run**
 
 ```bash
-npm install          # once
-npm start            # build the UI and serve it + the API on http://127.0.0.1:8765
-npm run dev          # API on :8765 + Vite on http://127.0.0.1:5173 (proxies /api), hot reload
-npm run serve        # serve the last build without rebuilding
-PORT=9000 npm start  # another port
+git clone https://github.com/nicobar97/cc_agentic_mission_control.git
+cd cc_agentic_mission_control
+npm install
+npm start
 ```
 
-Background, as left running:
+`npm start` builds the UI into `dist/` and serves it, together with the API, at
+**<http://127.0.0.1:8765>**. Press `Ctrl-C` to stop it.
+
+**Other scripts**
+
+| Command         | What it does                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `npm start`     | Build the UI, then serve it and the API on port 8765                                           |
+| `npm run serve` | Serve the last build without rebuilding                                                        |
+| `npm run dev`   | API on `:8765` plus Vite with hot reload on <http://127.0.0.1:5173> (proxies `/api`)           |
+| `npm run build` | Type-check (`tsc --noEmit`) and build into `dist/`                                             |
+
+`Ctrl-C` stops `npm run dev` too; it only stops the processes it started itself.
+
+To keep the server running in the background:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 nohup python3 -B server/server.py --port 8765 --static dist > run.log 2>&1 &
 echo $! > server.pid
-kill "$(cat server.pid)"      # stop
+kill "$(cat server.pid)"   # stop
 ```
 
-Requires Python 3.9+ (stdlib only) and Node 18+ for the build. `npm run dev` reuses an API already
-answering on `MC_API_PORT` (default 8765) instead of starting a second one; Vite's port is `MC_DEV_PORT` (5173).
+`run.log` and `*.pid` are ignored by git.
 
-Headless screenshots: add `?static=1`, because an open EventSource keeps Chrome's `--virtual-time-budget` from expiring.
+## Configuration
 
-## What it shows
+Environment variables:
 
-- **Sidebar · Chats.** Projects by readable path (taken from the sessions' `cwd`), each with its sessions.
-  - **Active now** at the top with a live pulse: a chat counts as active when its transcript, or one of its agents, changed in the last 5 min.
-  - Older chats below, newest first.
-  - Each row shows the title (the `summary` or `ai-title` line, else the first prompt), time, message count, 🤖 agents and cost (chat + its agents).
-  - Search with `⌘K`.
-  - **Stars.** ☆ on a project header (shown on hover, keyboard-focusable) pins it in a **Starred** section under Active now, in the order you starred them. Drag a starred project, or press Alt+↑/↓, to reorder.
-    - Active chats still appear in Active now, and search lists starred matches first.
-    - Stars live in this browser's `localStorage` (`mc.starredProjects`) only, with no server call, so they work in read-only mode. If storage is blocked, stars last only until the next reload.
-- **Top bar.**
-  - Global tiles: today's cost and tokens, over every chat and agent, deduped per message id.
-  - The number of active chats and of running agents.
-  - A "live · updated Ns ago" indicator.
-- **Conversation.** A read-only transcript:
-  - user and assistant messages rendered as markdown, with raw HTML shown as text;
-  - collapsed thinking;
-  - tool calls with their input (Bash, Edit diff, Write, Agent prompt…) and a collapsible result;
-  - long outputs truncated server-side, with "Show all" fetching the full block;
-  - timestamps and day separators;
-  - compaction, recap, command and hand-back notes.
-  - Loads 150 entries from the end and fetches older pages as you scroll up, keeping your reading position.
-  - New lines stream in over SSE. It sticks to the bottom only if you were already there; otherwise a "↓ N new" button appears.
-- **Mission Control** tab: the tracker dashboard for the chat. Each workflow (`subagents/workflows/wf_*`) is a run, and so is each plain agent, as in the tracker's history.
-  - It has the same parts as the tracker:
-    - the 13 stat tiles, with ⓘ legends;
-    - phase rings, which filter on click;
-    - agent cards with live elapsed time, a "quiet Xm" badge and an activity sparkline;
-    - a live feed, deliverables and the run switcher (`r`), with `● Live` to return to the live run;
-    - search (`/`), status filters, a drawer with the cost table, latest reasoning and timeline, and both themes (`t`).
-  - The sparkline bars have tooltips, react on hover and open the drawer at that action on click.
-  - A hovered card defers its redraw until the mouse leaves.
-- **Navigation.**
-  - Clicking an agent card, an `Agent` tool call ("Open agent chat ↗") or a hand-back note opens that subagent's transcript, with breadcrumbs (project › chat › workflow › agent) and back.
-  - A `Workflow` call links to its run in Mission Control.
-  - **One resolver** (`Session.resolve` in `server/store.py`, also at `GET /api/agent-resolve?p&s&tool=|agent=`) maps every Agent/Task call, SendMessage and hand-back note to an agent chat. It uses only recorded ids, never descriptions:
-    - `meta.json` `toolUseId`;
-    - `toolUseResult.agentId` from the chat and from every agent transcript;
-    - SendMessage `to`.
+| Variable         | Default                                 | Read by                     | Purpose                                                              |
+| ---------------- | --------------------------------------- | --------------------------- | -------------------------------------------------------------------- |
+| `PORT`           | `8765`                                  | `server/server.py`          | Server port for `npm start` / `npm run serve` (`PORT=9000 npm start`) |
+| `MC_API_PORT`    | `8765`                                  | `scripts/dev.mjs`, Vite     | API port in `npm run dev`                                            |
+| `MC_DEV_PORT`    | `5173`                                  | `scripts/dev.mjs`, Vite     | Vite dev server port                                                 |
+| `MC_ROOT`        | `~/.claude/projects`                    | `server/store.py`           | Read transcripts from another folder, such as a scratch or demo copy |
+| `MC_PATH_PREFIX` | `~/`                                    | `server/tracker_port.py`    | Path prefix trimmed from tool inputs in the activity feed            |
+| `MC_CLAUDE_BIN`  | `claude` on `PATH`, else `~/.local/bin/claude` | `server/runner.py`   | The Claude Code binary write mode starts                             |
 
-    It refreshes with every live update.
-  - **An agent whose transcript sits under another session** (a resumed chat gets a new session id) is found through a global agent-id index, and the link is marked "(other chat)". A deep link that names the wrong chat redirects to the right one.
-  - **A call with no reachable agent** shows a disabled link with an ⓘ giving the reason: rejected call, id not known yet, transcript not written yet, or removed by Claude Code's 30-day cleanup.
-  - **"Agent chats ▾"** in the session header lists the chat's agents, grouped by workflow, from any tab.
+`PORT` does not affect `npm run dev`; use `MC_API_PORT` there. All `MC_*` variables are removed from the environment
+of any `claude` process that write mode starts.
 
-- **Home.** Every agent across all chats, rendered with the same card, drawer and feed components as Mission Control.
-  - **Running now:** each card carries an extra line naming its chat, project, workflow and phase. When nothing runs, it shows "No agents running".
-  - **Recently finished:** the last 24 h, 24 cards at a time with "Show more". Each card shows the first line of the agent's final report.
-  - **A merged live feed.** Search (`/`) and the status filters work across all cards.
-  - Clicking a card opens the agent's chat, with a `Home ›` breadcrumb back; ☰ or a sparkline bar opens the drawer.
-- **Diffs.** Click a deliverable in Mission Control, or "± diff" on a Write/Edit call in a conversation, for a git-style diff of every change to that file in the run (or the whole chat), in time order.
-  - The header shows `diff --git`, `---` / `+++` and `@@` hunks, with old and new line gutters and dimmed context. Unified view is the default, with a split view.
-  - Long hunks collapse behind "Expand", and `j` / `k` step through changes.
-  - "This change" toggles with "All changes combined". "Copy patch" copies a unified diff that `git apply` accepts.
-  - The file itself is never read. Each change is rebuilt from the transcript, in this order of preference:
-    - the tool result's `originalFile` and `structuredPatch`;
-    - the Write content or the Edit `old_string` / `new_string`;
-    - replaying earlier changes, forwards from a known base and backwards from a later known state.
-  - A change whose base is unknown shows Claude Code's recorded hunks, with real line numbers.
-  - A Write over a file whose previous content isn't recorded shows every line as added, with a note.
-  - The combined diff covers the last unbroken stretch of history and says where it starts.
+Server flags (`python3 -B server/server.py ...`):
 
-Deep links (hash routes): `#/s/<project-slug>/<session-id>`, `…?tab=mc&run=<run-id>`, `…/a/<agent-id>`.
-`?static=1` (one fetch, no SSE) and `?theme=light|dark` help with screenshots.
+| Flag                | Default | Purpose                                                        |
+| ------------------- | ------- | -------------------------------------------------------------- |
+| `--port`            | `8765`  | Port (falls back to `PORT`)                                    |
+| `--static DIR`      | none    | Serve the built UI from `DIR` (usually `dist`)                 |
+| `--interval SECS`   | `1.5`   | How often the watcher checks the transcript files              |
+| `--verbose`         | off     | Log every HTTP request                                         |
+| `--dev-origin URL`  | none    | Extra Origin allowed to write (the Vite dev server); repeatable |
 
 ## How it works
 
-- `server/tracker_port.py` is a faithful copy of the tracker's parsing and pricing logic. Each function names its `tracker.py` origin:
-  - `PRICES`, `price_for`, `usage_cost`, with fast mode at 2×;
-  - usage deduped per message id;
-  - `read_agent` as an incremental `AgentState`, and `read_journal` as `JournalState`;
-  - `collect`, `summary`, `pick_icon`, `feature_name`, `task_name`.
-  - Done rules: journal result, `meta.finished`, or `SubagentHandback` / `StructuredOutput`. `stoppedByUser` means stopped. A run is finished after 2 min idle. With no live loop per run, it always applies the snapshot rule: 45 min of silence means stopped.
-  - It was checked against the original `collect()` on all 30 runs of a real session: identical statuses, costs, events, feed and phases.
-  - One extension beyond the tracker: a plain agent resumed after its hand-back (via SendMessage) has activity after its last result event, so it shows as running again until it hands back once more, or goes silent for 45 min. The tracker would keep it "done".
-- **Deliverables** are rebuilt from the `Write` / `Edit` tool inputs inside the transcripts, because the app never reads files outside `~/.claude/projects`.
-- `server/store.py` tails every JSONL file by byte offset. It parses only complete lines appended since the last pass, and re-reads a file that shrank or changed inode. A 1.5 s poll thread stats the files and pushes a `change` Server-Sent Event naming the chats that changed. The UI refetches only those, so a growing chat costs only its new lines.
-- `server/transcript.py` normalizes lines into entries. Unknown line and block types degrade to a small note. `/api/full` re-reads one line by its byte offset for the untruncated block.
-- **No redraw when nothing changed.** Mission Control compares each payload without `generated_at` and keeps the current DOM if nothing else differs. Timers tick on their own.
-
-## Write mode (off by default)
-
-Toggle **✎ Write mode** in the top bar. It lasts for the current tab only, and new tabs start read-only. With it on:
-- a composer appears under each chat: Enter sends, Shift+Enter adds a new line, and there are model and permission-mode selectors;
-- the sidebar gets **＋ New chat**, with a working-directory picker (recent project folders, or type a path), model, mode and first prompt. The UI selects the new chat as soon as its transcript appears.
-
-A "Claude is working…" panel streams the run's text and tool calls, with **■ Stop**, which ends that process group. The reply lands in the transcript, which the existing sync shows in place.
-
-How a message runs: the server spawns the local CLI with an argv list (no shell). The flags were checked against `claude --help` for 2.1.323:
+```mermaid
+flowchart LR
+    CC["Claude Code sessions"] -->|"append JSONL"| FS["~/.claude/projects"]
+    FS -->|"tail by byte offset"| SRV["Python server on 127.0.0.1"]
+    SRV -->|"GET /api/*"| UI["React UI in your browser"]
+    SRV -->|"SSE /api/events"| UI
+    UI -.->|"POST /api/write/* (write mode only)"| SRV
+    SRV -.->|"spawns claude -p"| CLI["claude CLI"]
+    CLI -.-> FS
 ```
-claude -p --output-format stream-json --verbose --include-partial-messages \
-       --permission-mode <manual|acceptEdits|plan> --permission-prompts none [--model M] [--resume <id> [--fork-session]]
+
+- **Data source.** The server indexes every transcript under `~/.claude/projects`, including subagent and workflow
+  transcripts. Each file is tailed by byte offset, so a growing chat costs only its new lines. A file that shrinks or
+  changes inode is re-read from the start.
+- **Live updates.** A watcher thread checks the files every 1.5 s and pushes a `change` Server-Sent Event naming the
+  chats that changed. The UI refetches only those, and skips redrawing when nothing differs.
+- **Agent status.** Runs, phases, the feed and done / stopped rules come from a port of an earlier tracker script:
+  an agent is done on a result, a finish marker or a hand-back; a run with no activity for 45 minutes counts as stopped.
+- **Cost estimation.** Usage is deduplicated per message id across all files and priced per model at list API prices
+  (input, output, 5-minute and 1-hour cache writes, cache reads; fast mode at 2x). It is an estimate: a subscription
+  plan bills differently.
+- **Diffs** are rebuilt from the `Write` / `Edit` tool inputs and results recorded in the transcripts.
+- **Stack.** The server is Python standard library only. The UI is React 18, TypeScript and Vite, with `marked` for
+  markdown, bundled locally with no CDN at runtime.
+
+Useful URL options: `?static=1` loads once without live updates, and `?theme=light|dark|dim` picks a theme. Chats have
+deep links such as `#/s/<project-slug>/<session-id>`, `...?tab=mc&run=<run-id>` and `.../a/<agent-id>`.
+
+## Write mode and safety
+
+Mission Control is read-only unless you turn write mode on.
+
+**Read side**
+
+- The server binds to `127.0.0.1` only. The `Host` header must be `127.0.0.1` or `localhost`, which blocks DNS
+  rebinding. There are no CORS headers.
+- Reads are `GET` / `HEAD`. The only accepted `POST` is `/api/write/*`; any other method gets `405`.
+- Ids in API calls are looked up in the index, never joined into paths, and every read stays under `~/.claude/projects`.
+- Mission Control itself never writes, moves or deletes anything under `~/.claude`. It runs Python with `-B` so no
+  `__pycache__` is created. In write mode, only the `claude` CLI it starts writes there, as it always does.
+
+**Write mode** is **off by default**. Toggle **Write mode** in the top bar; it lasts for the current browser tab only,
+and new tabs start read-only. It adds a composer under each chat and a **New chat** button (working directory, model,
+permission mode, first prompt). A panel streams the run and offers **Stop**.
+
+Every write request is checked by the server:
+
+- **Per-launch token.** A random token is created at startup, kept in memory only, injected into the served page and
+  required in the `X-MC-Token` header. It never goes into a cookie, a URL or the logs. A restart makes old tabs stale.
+- **Origin check.** The `Origin` header must be the app's own origin (or the Vite dev origin given with `--dev-origin`).
+- **Allowed permission modes only:** `default`, `acceptEdits` and `plan`. `bypassPermissions`, `dontAsk`, `auto` and
+  anything containing "dangerously" are refused. Runs use `--permission-prompts none`, so anything that would ask for
+  approval is denied. Your own `settings.json` allow and deny rules still apply.
+- **No shell, prompt on stdin.** `claude` is started with an argument list. The prompt is written to stdin, so it can't
+  be parsed as a flag and doesn't appear in `ps`.
+- **Working directory limits.** It must be an absolute, existing folder inside your home, with no `..`. Symlinks are
+  resolved, and `~/.claude`, other top-level dot-folders and `~/Library` are refused.
+- **Live chats are forked, never written into.** If a chat changed in the last 2 minutes and Mission Control isn't the
+  one writing it (an open terminal session, for example), sending is refused and **Fork into a new chat** is offered
+  instead (`--resume <session-id> --fork-session`).
+- **Concurrency caps.** One run per chat and at most 3 runs at once. Request bodies are capped at 256 KB.
+- **Clean environment.** The spawned `claude` inherits your environment minus `MC_*` and the variables that tie a process
+  to a parent Claude Code session.
+- **Prompts are never logged.** Logs hold metadata only: run id, session id, working directory, mode, model, exit code.
+
+> [!WARNING]
+> **Claude Code deletes old transcripts.** Every time `claude` starts, interactive or headless (including runs started
+> by Mission Control), it applies its own `cleanupPeriodDays` setting (default **30 days**) and deletes older
+> transcripts under `~/.claude/projects`. Mission Control can't show what has been deleted. To keep history longer,
+> raise it in `~/.claude/settings.json`:
+>
+> ```json
+> {
+>   "cleanupPeriodDays": 365
+> }
+> ```
+
+## Keyboard shortcuts
+
+| Key                  | Where                          | Action                                         |
+| -------------------- | ------------------------------ | ---------------------------------------------- |
+| `⌘K` / `Ctrl+K`      | Anywhere                       | Focus the chat search                          |
+| `/`                  | Mission Control, Home          | Search agents                                  |
+| `r`                  | Mission Control                | Open or close the run switcher                 |
+| `t`                  | Anywhere                       | Cycle the theme (Light, Dark, Dim)             |
+| `j` / `k`            | Diff viewer                    | Next / previous change                         |
+| `Esc`                | Drawer, menus, diff, search    | Close, or leave the search field               |
+| `Alt+↑` / `Alt+↓`    | A focused starred project      | Move it up or down                             |
+| `Enter`              | Composer                       | Send                                           |
+| `Shift+Enter`        | Composer                       | New line                                       |
+
+## Project structure
+
+```text
+server/
+  server.py        HTTP server: guards, API routes, Server-Sent Events, static bundle
+  store.py         Incremental index of ~/.claude/projects, active chats, today's totals, agent links
+  transcript.py    Turns JSONL lines into conversation entries, paged from the end
+  tracker_port.py  Run and agent status rules, phases, feed and pricing
+  diffs.py         Rebuilds git-style diffs from Write/Edit tool calls
+  runner.py        Write mode: safety checks and the headless claude runs
+scripts/
+  dev.mjs          `npm run dev`: starts (or reuses) the API, then Vite
+src/
+  main.tsx, App.tsx  App shell, top bar, chat view, Agent Tasks menu
+  lib.ts           Types, API client, hash routing, live sync, formatting
+  components/      Sidebar, Transcript, MissionControl, Home, Diff, Write, shared bits
+  theme.css        Design tokens for the three themes
+  app.css, tracker.css, refine.css  Layout, dashboard and design-pass styles
 ```
-- The prompt goes through **stdin**, so it can't be parsed as a flag (for example `--dangerously-skip-permissions`) and doesn't show in `ps`.
-- `cwd` is the new chat's folder, or the original folder of the resumed chat.
 
-Safety rules:
-- **Two guards on every write.** Write endpoints are `POST /api/write/*` only. Each needs:
-  - the **per-launch token**, made with `secrets.token_urlsafe` at start, held only in memory and injected into the served `index.html` as `<meta name="mc-token">`, sent back in the `X-MC-Token` header;
-  - an **Origin** equal to the app's own origin, or the Vite dev origin given with `--dev-origin`.
+## Development
 
-  The `Host` check still applies. The token never goes in a cookie, a URL or the logs.
-- **Permission modes:** only `default` (sent as `manual`, the CLI's name for it), `acceptEdits` and `plan` are offered. `bypassPermissions`, `dontAsk`, `auto` and anything "dangerously" are refused by the server too. `--permission-prompts none` means that in a headless run, anything that would ask for approval is denied. Your `settings.json` allow/deny rules still apply.
-- **Working directory:** absolute, existing and inside your home, with no `..`. Symlinks are resolved, so `~/x -> /etc` is refused. `~/.claude`, other top-level dot-folders and `~/Library` are refused too.
-- **Live chats are never written in place.** If a chat's transcript (or one of its agents) changed in the last 2 min and Mission Control isn't the one writing it, sending is refused (409) and **"⑂ Fork into a new chat"** (`--resume <id> --fork-session`) is offered instead. An open terminal session is always in this state, and the UI navigates to the fork when it appears.
-  - The server remembers its own writes in memory only. Right after a restart, a chat it wrote in the last 2 minutes counts as foreign and is forked: the safe side.
-- **Limits:** one run per chat, at most 3 at once.
-- **Environment:** inherited minus `MC_*` and the variables that tie a process to a parent Claude Code session (`CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`, `CLAUDE_CODE_MESSAGING_*`, `CLAUDE_PID`, …).
-- **Logs:** only metadata (run, session id, cwd, mode, model, exit code), never prompts or output.
+```bash
+npm install
+npm run dev          # API + Vite with hot reload on http://127.0.0.1:5173
+npx tsc --noEmit     # type-check only
+npm run build        # type-check and build into dist/
+```
 
-> **Note: transcripts older than 30 days.** Every `claude` start, interactive or headless (including Mission Control's runs), applies Claude Code's own `cleanupPeriodDays` (default 30) and deletes older transcripts under `~/.claude/projects`. Raise it in `~/.claude/settings.json` if you want to keep them.
+There is no formatter, linter or test suite configured yet; match the style of the surrounding code. The server must
+stay standard-library Python and must never write under `~/.claude`. To add a feature, add or extend a `GET` route in
+`server/server.py` (with the data work in `store.py`, `transcript.py` or `tracker_port.py`), add its type and fetch in
+`src/lib.ts`, and render it in a component under `src/components/`, using the tokens in `src/theme.css` rather than
+new colours. Anything that writes must go through `POST /api/write/*` and `server/runner.py`.
 
-In dev (`npm run dev`), the API is started with `--dev-origin http://127.0.0.1:5173`. Vite's server-side plugin fetches the token from `/api/dev-token`, which is enabled only in that mode and refuses any browser request, because those carry an Origin or Sec-Fetch header.
+## Troubleshooting
 
-## Theme
+- **Port already in use.** Pick another port: `PORT=9000 npm start`. In dev, Vite refuses to move off its port
+  (`strictPort`), so set `MC_DEV_PORT`. If an API already answers on `MC_API_PORT`, `npm run dev` reuses it.
+- **Write mode fails in dev with "forbidden origin".** The reused API was not started with
+  `--dev-origin http://127.0.0.1:5173`. Stop it and run `npm run dev` again so it starts its own.
+- **"missing or wrong write token" (403) after a restart.** The token changes on every launch. Reload the tab.
+- **Headless screenshots never finish.** The open event stream keeps headless Chrome's `--virtual-time-budget` from
+  expiring. Add `?static=1` to the URL.
+- **Big transcripts.** The conversation loads the last 150 entries and fetches older ones as you scroll up. Long tool
+  outputs are shortened on the server; use **Show all** for the full block. The first index of a large
+  `~/.claude/projects` can take a few seconds; the server prints how long it took.
+- **An agent link is disabled.** The ⓘ next to it gives the reason: a rejected call, an agent not written yet, or a
+  transcript removed by Claude Code's cleanup (see the warning above).
 
-All tokens live in `src/theme.css`, under three themes, picked with **Light / Dark / Dim** in the top bar (`t` cycles them). The choice is saved, and `?theme=light|dark|dim` overrides it.
-- **Dark** is a soft charcoal: `#17171a` page, `#1b1b1e` sidebar, `#1e1e21` cards, `#252529` raised, `#2c2c31` hover.
-- **Dim** is deeper, between the charcoal and black.
-- **Light** uses the same token names.
+## Roadmap
 
-All greys are neutral; there is no blue anywhere.
-- **Accent:** orange, `#ff8a3d` on dark, and `#ea6a12` fills with `#a2490c` text on light.
-- **Status:** running is yellow, done green, failed red, quiet/stopped grey.
-- **Sparkline categories:** read teal-green, write pink, shell yellow, thinking orange, result green, other grey.
+- Conversation activity bar and a "working" indicator in the chat view
+- A clear status for interrupted chats
+- A trash bin for chats
+- Screenshots made from demo data
+- Tests and CI for the server's parsing and safety rules
 
-The macOS emoji that render blue (🛰️, 🤖, 📁) were replaced by monochrome inline SVG icons.
+## License
 
-`src/refine.css` is the design pass:
-- a 5-size type scale (11 / 12 / 13 / 14 / 22 px) with tabular numbers;
-- a 4/8 px grid;
-- status shown as a pill plus a left edge;
-- 150–200 ms ease-out motion, with `prefers-reduced-motion` respected;
-- visible focus rings, keyboard reachability and skeleton loading states.
-
-WCAG AA, computed on every resting layer of each theme. Text needs at least 4.5:1, and status pill text is measured on its own 12% tint. Bars and dots need at least 3:1.
-
-### dark (charcoal): layers #17171a / #1b1b1e / #1e1e21 / #252529
-- text fg #ececee: min 12.94
-- text fg2 #a8a8b0: min 6.47
-- text mut #8c8c95: min 4.58
-- text acc #ff8a3d: min 6.51
-- pill acc #ff8a3d on its 12% tint: min 5.30
-- pill run #f2c94c on its 12% tint: min 7.27
-- pill ok #4cc38a on its 12% tint: min 5.54
-- pill bad #f2747e on its 12% tint: min 4.59
-- pill idle #9c9ca5 on its 12% tint: min 4.60
-- bar read #45c4b0: min 7.11 (3:1 needed)
-- bar write #e47aa8: min 5.56 (3:1 needed)
-- bar think #ff8a3d: min 6.51 (3:1 needed)
-- bar shell #f2c94c: min 9.62 (3:1 needed)
-- bar result #4cc38a: min 6.89 (3:1 needed)
-- bar tool #7c7c86: min 3.70 (3:1 needed)
-- primary button #17171a on #ff8a3d: 7.63
-### dim: layers #111113 / #141416 / #17171a / #1d1d21
-- text fg #ececee: min 14.24
-- text fg2 #a8a8b0: min 7.11
-- text mut #86868f: min 4.66
-- text acc #ff8a3d: min 7.16
-- pill acc #ff8a3d on its 12% tint: min 5.86
-- pill run #f2c94c on its 12% tint: min 8.08
-- pill ok #4cc38a on its 12% tint: min 6.13
-- pill bad #f0636f on its 12% tint: min 4.60
-- pill idle #9a9aa3 on its 12% tint: min 4.98
-- bar read #45c4b0: min 7.82 (3:1 needed)
-- bar write #e47aa8: min 6.12 (3:1 needed)
-- bar think #ff8a3d: min 7.16 (3:1 needed)
-- bar shell #f2c94c: min 10.59 (3:1 needed)
-- bar result #4cc38a: min 7.58 (3:1 needed)
-- bar tool #7c7c86: min 4.07 (3:1 needed)
-- primary button #111113 on #ff8a3d: 8.04
-### light: layers #fafafa / #f7f7f8 / #ffffff / #f4f4f5
-- text fg #18181b: min 16.12
-- text fg2 #52525b: min 7.03
-- text mut #6b6b75: min 4.79
-- text acc #a2490c: min 5.47
-- pill acc #a2490c on its 12% tint: min 4.61
-- pill run #7b5f09 on its 12% tint: min 4.66
-- pill ok #26714d on its 12% tint: min 4.57
-- pill bad #c21221 on its 12% tint: min 4.58
-- pill idle #64646d on its 12% tint: min 4.56
-- bar read #2e8f80: min 3.57 (3:1 needed)
-- bar write #c8457f: min 4.14 (3:1 needed)
-- bar think #e46712: min 3.06 (3:1 needed)
-- bar shell #ad850d: min 3.11 (3:1 needed)
-- bar result #359d6b: min 3.09 (3:1 needed)
-- bar tool #8b8b96: min 3.07 (3:1 needed)
-- primary button #1a1a1a on #ea6a12: 5.44
-
-## Safety (read side)
-
-- It binds to `127.0.0.1` only. Reads are GET/HEAD; writes are the guarded `POST /api/write/*` above; everything else gets a 405.
-- There are no CORS headers, and the `Host` header must be `127.0.0.1` or `localhost`, which blocks DNS rebinding.
-- Ids in API calls are looked up in the index, never joined into paths from user input, and every read is checked to stay under `~/.claude/projects`.
-- Mission Control itself never writes, moves or deletes anything under `~/.claude`; in write mode only the `claude` CLI it starts does, as it always does. It runs with `-B` / `PYTHONDONTWRITEBYTECODE`, and it copies the tracker logic rather than importing it, so no `__pycache__` lands there.
-- The UI bundle is fully local, with no CDN at runtime. Its dependencies are React, `marked`, Vite and TypeScript.
-
-## API
-
-Read (GET):
-
-| Path | |
-|---|---|
-| `/api/index` | projects, sessions and the global tiles |
-| `/api/transcript?p&s[&a]&before|after&limit` | a page of transcript entries (`a` = agent id) |
-| `/api/full?p&s[&a]&seq` | one entry, untruncated |
-| `/api/mc?p&s[&run]` | run history + one run's tracker payload |
-| `/api/agents?state=running\|recent[&limit&hours]` | home: every agent across chats, from the cached runs |
-| `/api/agent-resolve?p&s&tool=<toolUseId>\|agent=<agentId>` | where an agent's chat lives (or why it isn't available) |
-| `/api/diff?p&s&path[&run][&change=i\|combined=1]` | the changes to one file, and one rendered diff |
-| `/api/events` | Server-Sent Events: `hello`, `change`, `runs` (a write-mode run changed; no content), `ping` (every 5 s) |
-
-Write (POST, `X-MC-Token` plus own Origin, JSON body): `/api/write/options`, `/api/write/new`, `/api/write/send` (`fork: true` to fork), `/api/write/stop`, `/api/write/runs`.
+License: not yet chosen.
