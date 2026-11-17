@@ -42,7 +42,7 @@ files. Everything runs on your machine: the server binds to `127.0.0.1`, and the
 - **Conversation view.** User and assistant messages as markdown, collapsed thinking, every tool call with its input and
   a collapsible result, compaction and command notes. Older pages load as you scroll up; new lines stream in live.
 - **Activity bar.** A vertical strip beside the conversation, one mark per entry of the whole chat (your prompts stand
-  out). Hover to scrub through the chat, click to pin; older parts load on demand.
+  out). Hover for a quick preview, click to jump there; older parts load on demand.
 - **Git-style diffs.** For any file a chat wrote: unified or split view, hunks with line gutters, "this change" or "all
   changes combined", and "Copy patch" that `git apply` accepts. Diffs are rebuilt from the transcript; your files are
   never read.

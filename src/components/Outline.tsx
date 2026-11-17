@@ -1,6 +1,6 @@
 // Conversation outline: a slim vertical strip on the right of the transcript, one mark per entry of the WHOLE chat
 // (from /api/outline, not only the loaded page), coloured like the agent cards' sparkline (MARK_KIND), with the same
-// tooltip (Tip). Hovering scrubs the chat to that entry (throttled); a click pins it; a translucent box shows what is
+// tooltip (Tip). Hovering shows a quick preview in the tooltip; a click jumps the chat there; a translucent box shows what is
 // on screen. Long chats are bucketed into ~3 px rows coloured by their dominant kind (a prompt or an error wins).
 import { RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, MARK_KIND, QS, useChangeRev } from "../lib";
@@ -150,7 +150,7 @@ export function Outline({ p, s, a, box, loaded, seek, loading }: Props) {
   }, [box, measure]);
   useEffect(() => { const r = requestAnimationFrame(measure); return () => cancelAnimationFrame(r); }, [loaded, measure]);
 
-  // ---------- hover: scrub (throttled), click pins, leaving keeps the scroll where it is ----------
+  // ---------- hover: a quick preview in the tooltip only; click jumps the chat there ----------
   const [hov, setHov] = useState(-1);
   const [pinned, setPinned] = useState(false);
   const th = useRef({ last: 0, timer: 0, seq: -1, sent: -1 });
@@ -175,7 +175,7 @@ export function Outline({ p, s, a, box, loaded, seek, loading }: Props) {
   };
   const tipFor = (b: number, cx: number, cy: number, pin = pinned) => {
     const r = rows[b], N = marks.length, one = r.i1 - r.i0 === 1, m0 = marks[r.i0], m1 = marks[r.i1 - 1];
-    const hint = pin ? "pinned · leave the strip to scrub again" : "click to pin";
+    const hint = pin ? "shown in the chat" : "click to jump there";
     if (one) return showTip({ k: m0[1], t: m0[2] || "", x: m0[4], n: r.i0 + 1, of: N, cx, cy, sticky: true, ft: `entry ${r.i0 + 1} of ${N} · ${hint}` });
     const list = marks.slice(r.i0, r.i1), shown = list.slice(0, 6);
     showTip({ k: r.k, t: m0[2] || "", t2: m1[2] || "", x: "", n: r.i0 + 1, of: N, cx, cy, sticky: true,
@@ -185,7 +185,6 @@ export function Outline({ p, s, a, box, loaded, seek, loading }: Props) {
     const b = rowAt(e.clientY);
     if (b < 0) { setHov(-1); showTip(null); return; }
     setHov(b); tipFor(b, e.clientX, e.clientY);
-    if (!pinned) scrub(rows[b].target);
   };
   const onLeave = () => { setHov(-1); setPinned(false); showTip(null); };
   const onClick = (e: React.MouseEvent) => {
@@ -236,7 +235,7 @@ export function Outline({ p, s, a, box, loaded, seek, loading }: Props) {
   const cls = "ostrip" + (hov >= 0 ? " hov" : "") + (loading ? " busy" : "") + (pinned ? " pinned" : "");
   return (
     <div className={cls} ref={track} tabIndex={0} role="slider" aria-orientation="vertical"
-      aria-label="Conversation outline: hover to scrub through the chat, click to pin, ↑ and ↓ jump between your prompts"
+      aria-label="Conversation outline: hover for a quick preview, click to jump there, ↑ and ↓ jump between your prompts"
       aria-valuemin={0} aria-valuemax={users.length} aria-valuenow={curPrompt}
       aria-valuetext={users.length ? `prompt ${curPrompt} of ${users.length}` : "no prompts"} aria-busy={loading || undefined}
       onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick} onKeyDown={onKey} onBlur={() => { setHov(-1); showTip(null); }}>
