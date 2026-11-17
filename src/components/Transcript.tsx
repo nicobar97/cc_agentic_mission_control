@@ -3,7 +3,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { api, Entry, fmtTok, fmtUsd, go, Head, hhmmss, Page, shortModel, STATIC, useChangeRev } from "../lib";
 import { Fold, Info, Markdown } from "./bits";
 import { openDiff } from "./Diff";
-import { findSeq, Outline, reducedMotion, visibleSeqs } from "./Outline";
+import { findSeq, Outline, reducedMotion, SeekOpt, visibleSeqs } from "./Outline";
 
 type Props = { p: string; s: string; a?: string; onHead?: (h: Head) => void };
 type St = { entries: Entry[]; start: number; total: number; epoch: number };
@@ -98,29 +98,36 @@ export function Transcript({ p, s, a, onHead }: Props) {
     if (!el || !pd) return;
     pend.current = null;
     if (pd.kind === "bottom") el.scrollTop = el.scrollHeight;
-    else if (pd.kind === "seek") { if (seekTo.current) scrollToSeq(seekTo.current.seq, false); }
+    else if (pd.kind === "seek") { const k = seekTo.current; if (k) scrollToSeq(k.seq, false, k.hl, k.off); }
     else {
       el.scrollTop = pd.top + (el.scrollHeight - pd.h);
-      // an auto-loaded older page cancels a smooth scroll the outline started: land on its target anyway
-      const k = seekTo.current; if (k && performance.now() - k.at < 1500) scrollToSeq(k.seq, false, false);
+      // an auto-loaded older page cancels a smooth scroll the outline started: land on its target anyway, and keep
+      // loading when the target is older still (a lens drag that went past this page while it loaded)
+      const k = seekTo.current;
+      if (k && performance.now() - k.at < 1500) {
+        scrollToSeq(k.seq, false, false, k.off);
+        if (stRef.current && k.seq < stRef.current.start) seek(k.seq, false, { hl: k.hl, off: k.off });
+      }
     }
   }, [st]);
 
   // ---------- outline strip: scroll to any entry of the chat, loading older pages first when it isn't loaded yet ----------
   const [seeking, setSeeking] = useState(false);
-  const seekTo = useRef<{ seq: number; at: number } | null>(null);
-  const scrollToSeq = useCallback((seq: number, smooth: boolean, hl = true) => {
+  const seekTo = useRef<{ seq: number; at: number; hl: boolean; off: number } | null>(null);
+  // `off`: where the entry's top lands, in px below the viewport top (a dragged lens restores an exact offset)
+  const scrollToSeq = useCallback((seq: number, smooth: boolean, hl = true, off = 12) => {
     const el = box.current; if (!el) return;
     const n = findSeq(el, seq); if (!n) return;
-    const top = n.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - 12;
+    const top = n.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - off;
     el.scrollTo({ top, behavior: smooth && !reducedMotion() && !STATIC ? "smooth" : "auto" });
     if (hl) { n.classList.remove("o-hl"); void n.offsetWidth; n.classList.add("o-hl"); window.setTimeout(() => n.classList.remove("o-hl"), 1400); }
     if (!smooth) { const v = visibleSeqs(el); document.body.dataset.outlineLanded = String(seq); document.body.dataset.outlineTop = v ? String(v[0]) : ""; }
   }, []);
-  const seek = useCallback(async (seq: number, smooth: boolean) => {
+  const seek = useCallback(async (seq: number, smooth: boolean, o: SeekOpt = {}) => {
     const cur = stRef.current; if (!cur) return;
-    seekTo.current = { seq, at: performance.now() };
-    if (seq >= cur.start) { scrollToSeq(seq, smooth); return; }
+    const hl = o.hl ?? true, off = o.off ?? 12;
+    seekTo.current = { seq, at: performance.now(), hl, off };
+    if (seq >= cur.start) { scrollToSeq(seq, smooth, hl, off); return; }
     if (loadingOlder.current) return;   // the load in flight scrolls to the latest target when it lands
     loadingOlder.current = true; setSeeking(true);
     try {
