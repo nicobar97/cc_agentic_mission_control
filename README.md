@@ -49,12 +49,12 @@ files. Everything runs on your machine: the server binds to `127.0.0.1`, and the
   changes combined", and "Copy patch" that `git apply` accepts. Diffs are rebuilt from the transcript; your files are
   never read.
 - **Mission Control dashboard.** Per chat: each workflow or plain agent is a run, with stat tiles, phase rings, agent
-  cards with live elapsed time and activity sparklines, a live feed, deliverables, a run switcher and a detail drawer
+  cards with live elapsed time and activity sparklines, a live feed, deliverables, a mission switcher and a detail drawer
   with the cost table and timeline.
 - **Agents home page.** Every agent across all chats: running now, and recently finished (last 24 h) with the first
   line of each final report.
-- **Agent Tasks menu.** A chat's subagents and workflows as tasks, with status, agent count, tokens and cost; jump to
-  any agent's own transcript.
+- **Missions menu.** A chat's subagents and workflows as missions (a workflow is one mission with several agents), with
+  status, agent count, tokens and cost; jump to any agent's own transcript.
 - **Honest status.** A chat whose last turn was interrupted, or an agent you stopped, shows as **stopped**, not running.
 - **Cost and tokens.** Today's cost and tokens across every chat and agent, in the top bar; per chat, the conversation
   itself, its agents and the total.
@@ -251,7 +251,7 @@ from Finder." **Move to Trash** (Enter) or **Cancel** (Esc).
 | -------------------- | ------------------------------ | ---------------------------------------------- |
 | `⌘K` / `Ctrl+K`      | Anywhere                       | Focus the chat search                          |
 | `/`                  | Mission Control, Home          | Search agents                                  |
-| `r`                  | Mission Control                | Open or close the run switcher                 |
+| `r`                  | Mission Control                | Open or close the mission switcher             |
 | `t`                  | Anywhere                       | Cycle the theme (Light, Dark, Dim)             |
 | `j` / `k`            | Diff viewer                    | Next / previous change                         |
 | `Esc`                | Drawer, menus, diff, search    | Close, or leave the search field               |
@@ -272,7 +272,7 @@ server/
 scripts/
   dev.mjs          `npm run dev`: starts (or reuses) the API, then Vite
 src/
-  main.tsx, App.tsx  App shell, top bar, chat view, Agent Tasks menu
+  main.tsx, App.tsx  App shell, top bar, chat view, Missions menu
   lib.ts           Types, API client, hash routing, live sync, formatting
   components/      Sidebar, Transcript, MissionControl, Home, Diff, Write, shared bits
   theme.css        Design tokens for the three themes

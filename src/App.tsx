@@ -74,7 +74,7 @@ function TopBar({ idx }: { idx: Index | null }) {
         <div className="gstat"><div className="k">Running agents<Info label="running agents">subagents and workflow agents still running, by the tracker's rules: not finished, no hand-back, not stopped (stoppedByUser, killed, or its last turn interrupted), and not silent for 45 min</Info></div><div className="v">{g ? g.running_agents : "—"}</div></div>
       </div>
       <div className="tools"><WriteToggle /><LiveDot />
-        <Info right label="Legend: live"><span className="li"><span className="dot" style={{ animation: "none" }} /><b>live</b> pushed by the server as files change (Server-Sent Events)</span><span className="li"><span className="dot" style={{ animation: "none", background: "var(--idle)" }} /><b>offline</b> the server is not answering; it reconnects by itself</span><span className="li">Read-only unless write mode is on: then only the <code>claude</code> CLI it starts writes chats, and a chat you trash is moved to the macOS Trash (never deleted)</span><span className="li">Keys: <kbd>⌘K</kbd> chats · <kbd>/</kbd> search agents · <kbd>r</kbd> runs · <kbd>t</kbd> theme · <kbd>esc</kbd> close</span></Info>
+        <Info right label="Legend: live"><span className="li"><span className="dot" style={{ animation: "none" }} /><b>live</b> pushed by the server as files change (Server-Sent Events)</span><span className="li"><span className="dot" style={{ animation: "none", background: "var(--idle)" }} /><b>offline</b> the server is not answering; it reconnects by itself</span><span className="li">Read-only unless write mode is on: then only the <code>claude</code> CLI it starts writes chats, and a chat you trash is moved to the macOS Trash (never deleted)</span><span className="li">Keys: <kbd>⌘K</kbd> chats · <kbd>/</kbd> search agents · <kbd>r</kbd> missions · <kbd>t</kbd> theme · <kbd>esc</kbd> close</span></Info>
         <ThemeSwitch /></div>
     </div>
   );
@@ -120,7 +120,7 @@ type Task = { id: string; wf: string | null; agentId: string | null; title: stri
   agents: number; tokens: number; cost: number; start: string | null; members: { id: string; label: string }[] };
 const PLAIN_SHOWN = 8;
 
-/** "Agent Tasks ▾": every task of this chat as one block. A workflow is one task with several agents; a plain agent is a task of one.
+/** "Missions ▾": every mission of this chat as one block. A workflow is one mission with several agents; a plain agent is a mission of one.
  *  Figures come from the run summaries the run switcher uses (/api/mc history), so the two always agree. */
 function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: string; label?: string; count: number }) {
   const [open, setOpen] = useState(false);
@@ -155,12 +155,12 @@ function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: strin
     t.tokens ? `${fmtTok(t.tokens)} tok` : null].filter(Boolean).join(" · ");
   const side = (t: Task) => <span className="rs"><span className={"badge " + (t.status === "running" ? "running" : t.status)}>{t.status}</span>
     {t.cost ? <small>{fmtUsd(t.cost)}</small> : null}</span>;
-  if (!count && !a) return <button disabled title="This chat started no subagent or workflow"><Bot /> Agent Tasks<span className="n">0</span></button>;
+  if (!count && !a) return <button disabled title="This chat started no subagent or workflow"><Bot /> Missions<span className="n">0</span></button>;
   return <span className="agmenu">
     <button className={a ? "on" : ""} aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-      title="This chat's tasks: a workflow with its agents, or a single agent"><Bot /> {a ? (label || a) : "Agent Tasks"}<span className="n">{count}</span> ▾</button>
+      title="This chat's missions: a workflow with its agents, or a single agent"><Bot /> {a ? (label || a) : "Missions"}<span className="n">{count}</span> ▾</button>
     {open && <div className="runs open agm" role="menu" onClick={(e) => e.stopPropagation()}>
-      <div className="rh"><span>Agent Tasks</span><span>{resp ? `${tasks.length} tasks · ${nAgents} agents · ${fmtUsd(total)}` : "…"}</span></div>
+      <div className="rh"><span>Missions</span><span>{resp ? `${tasks.length} missions · ${nAgents} agents · ${fmtUsd(total)}` : "…"}</span></div>
       {!resp && <div className="skel skel-line" style={{ margin: 10 }} />}
       {visible.map((t) => t.wf ? <div key={t.id} className="agm-task">
         <div className={"run task" + (t.members.some((m) => m.id === a) ? " sel" : "")}>
@@ -173,7 +173,7 @@ function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: strin
           href={href({ p, s, a: m.id })} onClick={close} title={m.id}><Bot /> <span>{m.label}</span></a>)}</div>}
       </div> : <a key={t.id} role="menuitem" className={"run" + (t.agentId === a ? " sel" : "")} href={href({ p, s, a: t.agentId! })} onClick={close} title={`${t.title} (${t.agentId})`}>
         <span className="ri"><Bot /></span><span style={{ minWidth: 0 }}><b>{t.title}</b><small>{meta(t)}</small></span>{side(t)}</a>)}
-      {plain.length > PLAIN_SHOWN && <button className="agm-more" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${plain.length} single-agent tasks`}</button>}
+      {plain.length > PLAIN_SHOWN && <button className="agm-more" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${plain.length} single-agent missions`}</button>}
     </div>}
   </span>;
 }

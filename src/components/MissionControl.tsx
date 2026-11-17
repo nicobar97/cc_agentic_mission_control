@@ -76,7 +76,7 @@ export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
       <header className="mc-header">
         <div className="brand"><div className="logo"><RunIcon icon={d.icon} /></div>
           <div><div className="eyebrow">{d.feature || d.work}</div><h1 title={d.task}>{d.task || "Agents"}</h1>
-            <div className="sub" id="sub">{`${d.work} · run ${d.run} · ${isPast ? "history · " + fmtDate(d.summary?.start) + " · " : ""}${d.finished ? "finished" : "in progress"}`}</div></div></div>
+            <div className="sub" id="sub">{`${d.work} · mission ${d.run} · ${isPast ? "history · " + fmtDate(d.summary?.start) + " · " : ""}${d.finished ? "finished" : "in progress"}`}</div></div></div>
         <div className="tools">
           <input ref={qRef} type="search" placeholder="Search agents, activity…  ( / )" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="seg">{[["all", "All"], ["running", "Running"], ["done", "Done"], ["attention", "Attention"]].map(([f, l]) =>
@@ -89,7 +89,7 @@ export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
           </Info>
           {isPast && liveId ? <button className="btn live-btn" title="Back to the live run" onClick={() => select(null)}>● Live</button> : null}
           <div className="runsw">
-            <button className="btn" title="Run history (r)" onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}>🕘 <span>{H.length ? `${H.length} runs` : "History"}</span> ▾</button>
+            <button className="btn" title="Missions (r)" onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}>🕘 <span>{H.length ? `${H.length} mission${H.length === 1 ? "" : "s"}` : "Missions"}</span> ▾</button>
             <RunsMenu open={menu} hist={H} cur={d.run} liveId={liveId} onPick={select} />
           </div>
         </div>
@@ -138,7 +138,7 @@ function RunsMenu({ open, hist, cur, liveId, onPick }: { open: boolean; hist: Ru
   const cost = hist.reduce((s, r) => s + (r.cost || 0), 0), tok = hist.reduce((s, r) => s + (r.tokens || 0), 0);
   return (
     <div className={"runs" + (open ? " open" : "")} onClick={(e) => e.stopPropagation()}>
-      <div className="rh"><span>Run history · newest first</span><span>{hist.length} runs · {fmtTok(tok)} tok · {fmtUsd(cost)}</span></div>
+      <div className="rh"><span>Missions · newest first</span><span>{hist.length} mission{hist.length === 1 ? "" : "s"} · {fmtTok(tok)} tok · {fmtUsd(cost)}</span></div>
       {hist.length ? hist.map((r) => {
         const st = r.status !== "running" ? r.status : r.id === liveId ? "live" : r.end && now - +t(r.end)! > 1800e3 ? "stale" : "running";
         const cls = ({ live: "running", stale: "quiet", running: "running" } as any)[st] || st;
@@ -146,7 +146,7 @@ function RunsMenu({ open, hist, cur, liveId, onPick }: { open: boolean; hist: Ru
           <span className="ri"><RunIcon icon={r.icon} size={16} /></span>
           <span style={{ minWidth: 0 }}><b>{r.title}</b><small>{fmtDate(r.start)} · {r.agents} agent{r.agents === 1 ? "" : "s"} · {fmtTok(r.tokens)} tok</small></span>
           <span className="rs"><span className={"badge " + cls}>{st}</span><small>{fmtUsd(r.cost)}</small></span></div>;
-      }) : <div className="empty">No run recorded yet.</div>}
+      }) : <div className="empty">No mission recorded yet.</div>}
     </div>
   );
 }
@@ -190,8 +190,8 @@ function Hero({ d, hist, isPast, chatCost }: { d: RunData; hist: RunSummary[]; i
         const runsCost = hist.reduce((n, r) => n + (r.cost || 0), 0), runsTok = hist.reduce((n, r) => n + (r.tokens || 0), 0);
         const nAg = hist.reduce((n, r) => n + (r.agents || 0), 0);
         return <>
-          {hist.length > 1 && <Stat k="Agents · all runs" hint={`Every agent run of this chat: ${hist.length} runs, ${nAg} agents, ${fmtTok(runsTok)} tokens (input, output, cache). The main conversation is counted separately in "This chat". Open 🕘 to switch run.`}>
-            {fmtUsd(runsCost)}<span className="sub"> · {hist.length} runs</span></Stat>}
+          {hist.length > 1 && <Stat k="Missions · agents" hint={`Every mission of this chat: ${hist.length} missions, ${nAg} agents, ${fmtTok(runsTok)} tokens (input, output, cache). The main conversation is counted separately in "This chat". Open 🕘 to switch mission.`}>
+            {fmtUsd(runsCost)}<span className="sub"> · {hist.length} missions</span></Stat>}
           {chatCost != null && <Stat k="This chat" hint="The main conversation itself, without its agents: every message of the chat transcript, deduped per message id and priced per model at list API prices">{fmtUsd(chatCost)}</Stat>}
           {chatCost != null && <Stat k="Chat total" hint={`This chat ${fmtUsd(chatCost)} + its agents ${fmtUsd(runsCost)}. The same figure as the chat's row in the sidebar.`}>{fmtUsd(chatCost + runsCost)}</Stat>}
         </>;
