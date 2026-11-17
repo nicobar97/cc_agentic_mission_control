@@ -334,3 +334,8 @@ pre.diff-new{background:var(--d-add-bg);border-color:transparent}
   .mcwrap .main>aside.panel .feed,.home .main>aside.panel .feed{flex:1 1 auto;min-height:0;max-height:none}
 }
 .mcwrap,.home{padding-bottom:16px}
+
+/* No native scrollbar on the page and the main panes (conversation, Mission Control): scrolling still works with wheel,
+   trackpad and keys, and the conversation has its activity bar. Sidebar, feed and menus keep their slim themed bars. */
+html,body,.scroll{scrollbar-width:none;-ms-overflow-style:none}
+html::-webkit-scrollbar,body::-webkit-scrollbar,.scroll::-webkit-scrollbar{display:none;width:0;height:0}

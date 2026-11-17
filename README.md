@@ -41,6 +41,8 @@ files. Everything runs on your machine: the server binds to `127.0.0.1`, and the
   title, time, message count, agent count and cost. Search with `⌘K`.
 - **Conversation view.** User and assistant messages as markdown, collapsed thinking, every tool call with its input and
   a collapsible result, compaction and command notes. Older pages load as you scroll up; new lines stream in live.
+- **Activity bar.** A vertical strip beside the conversation, one mark per entry of the whole chat (your prompts stand
+  out). Hover to scrub through the chat, click to pin; older parts load on demand.
 - **Git-style diffs.** For any file a chat wrote: unified or split view, hunks with line gutters, "this change" or "all
   changes combined", and "Copy patch" that `git apply` accepts. Diffs are rebuilt from the transcript; your files are
   never read.
@@ -51,7 +53,9 @@ files. Everything runs on your machine: the server binds to `127.0.0.1`, and the
   line of each final report.
 - **Agent Tasks menu.** A chat's subagents and workflows as tasks, with status, agent count, tokens and cost; jump to
   any agent's own transcript.
-- **Cost and tokens.** Today's cost and tokens across every chat and agent, in the top bar.
+- **Honest status.** A chat whose last turn was interrupted, or an agent you stopped, shows as **stopped**, not running.
+- **Cost and tokens.** Today's cost and tokens across every chat and agent, in the top bar; per chat, the conversation
+  itself, its agents and the total.
 - **Live sync.** Server-Sent Events push changes as files grow; only the changed chats are refetched.
 - **Optional write mode.** Off by default. Start a new chat or send a message from the browser, with strict guards
   (see [Write mode and safety](#write-mode-and-safety)).
@@ -144,7 +148,8 @@ flowchart LR
 - **Live updates.** A watcher thread checks the files every 1.5 s and pushes a `change` Server-Sent Event naming the
   chats that changed. The UI refetches only those, and skips redrawing when nothing differs.
 - **Agent status.** Runs, phases, the feed and done / stopped rules come from a port of an earlier tracker script:
-  an agent is done on a result, a finish marker or a hand-back; a run with no activity for 45 minutes counts as stopped.
+  an agent is done on a result, a finish marker or a hand-back; it is stopped when its turn was interrupted or it was
+  killed, and a run with no activity for 45 minutes counts as stopped.
 - **Cost estimation.** Usage is deduplicated per message id across all files and priced per model at list API prices
   (input, output, 5-minute and 1-hour cache writes, cache reads; fast mode at 2x). It is an estimate: a subscription
   plan bills differently.
@@ -270,8 +275,7 @@ new colours. Anything that writes must go through `POST /api/write/*` and `serve
 
 ## Roadmap
 
-- Conversation activity bar and a "working" indicator in the chat view
-- A clear status for interrupted chats
+- A "working" indicator in the chat view
 - A trash bin for chats
 - Screenshots made from demo data
 - Tests and CI for the server's parsing and safety rules
