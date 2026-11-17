@@ -257,6 +257,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": "bad paging"}, 400)
         page = t.page(before=before, after=after, limit=limit)
         page["head"] = self.session_head(sess, agent) if not after or q.get("head") else None
+        with STORE.lock:   # agents of this chat still running (the working line's "Waiting for …")
+            page["running"] = [{"id": r["id"], "label": r["label"], "first": r["first"]} for run in STORE.session_runs(sess)
+                               for r in run["agents"] if r["status"] == "running" and (not agent or r["id"] != agent.aid)] if not agent else []
         return self.send_json(page)
 
     def mc(self, sess, q):

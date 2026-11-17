@@ -13,7 +13,8 @@ import time
 
 import tracker_port as tp
 
-ROOT = os.path.realpath(os.path.expanduser("~/.claude/projects"))
+# MC_ROOT lets a test server read a scratch copy instead (never used to write anything)
+ROOT = os.path.realpath(os.environ.get("MC_ROOT") or os.path.expanduser("~/.claude/projects"))
 ACTIVE_SECS = 300          # a session is "active" when one of its files changed in the last 5 min
 ID_RE = re.compile(r"^[A-Za-z0-9][\w.-]{0,200}$")
 AID_RE = re.compile(r"^a[0-9a-f]{8,32}$")

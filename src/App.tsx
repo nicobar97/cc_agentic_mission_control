@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { agoSecs, api, fmtTok, fmtUsd, go, href, Head, Index, Route, STATIC, startLive, useChangeRev, useLive, useNow, useRoute, when } from "./lib";
-import { Bot, Info, Logo } from "./components/bits";
+import { agoSecs, api, fmtDate, fmtTok, fmtUsd, go, href, Head, Index, McResp, Route, STATIC, startLive, useChangeRev, useLive, useNow, useRoute, when } from "./lib";
+import { Bot, Info, Logo, RunIcon } from "./components/bits";
 import { Sidebar } from "./components/Sidebar";
 import { Transcript } from "./components/Transcript";
 import { MissionControl } from "./components/MissionControl";
@@ -113,28 +113,64 @@ function SessionView({ route, idx }: { route: Route; idx: Index | null }) {
   );
 }
 
-/** "Agent chats ▾": always in the session header, so an agent's chat is reachable from any view of the chat. */
+type Task = { id: string; wf: string | null; agentId: string | null; title: string; icon?: string; status: string;
+  agents: number; tokens: number; cost: number; start: string | null; members: { id: string; label: string }[] };
+const PLAIN_SHOWN = 8;
+
+/** "Agent Tasks ▾": every task of this chat as one block. A workflow is one task with several agents; a plain agent is a task of one.
+ *  Figures come from the run summaries the run switcher uses (/api/mc history), so the two always agree. */
 function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: string; label?: string; count: number }) {
   const [open, setOpen] = useState(false);
-  const [head, setHead] = useState<Head | null>(null);
+  const [resp, setResp] = useState<McResp | null>(null);
+  const [exp, setExp] = useState<Record<string, boolean>>({});
+  const [all, setAll] = useState(false);
   const rev = useChangeRev(p, s);
-  useEffect(() => { if (open) api<{ head: Head }>("/api/transcript", { p, s, limit: 1 }).then((r) => setHead(r.head)).catch(() => {}); }, [open, rev, p, s]);
+  useEffect(() => { if (open) api<McResp>("/api/mc", { p, s }).then(setResp).catch(() => {}); }, [open, rev, p, s]);
   useEffect(() => { const c = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest(".agmenu")) setOpen(false); }; addEventListener("click", c); return () => removeEventListener("click", c); }, []);
-  const list = head ? Object.entries(head.agents).map(([id, x]) => ({ id, ...x })) : [];
-  const groups = new Map<string, typeof list>();
-  list.forEach((x) => { const k = x.wf || ""; groups.set(k, [...(groups.get(k) || []), x]); });
-  if (!count && !a) return <button disabled title="This chat started no subagent or workflow"><Bot /> Agent chats<span className="n">0</span></button>;
+  const head = resp?.head;
+  const agents = head ? Object.entries(head.agents).map(([id, x]) => ({ id, ...x })) : [];
+  const members = new Map<string, { id: string; label: string }[]>();
+  agents.forEach((x) => { if (x.wf) members.set(x.wf, [...(members.get(x.wf) || []), { id: x.id, label: x.label }]); });
+  const seen = new Set<string>();
+  const tasks: Task[] = (resp?.history || []).map((r) => {
+    const wf = r.id.startsWith("wf_") ? r.id : null, agentId = wf ? null : r.id.replace(/^agent-/, "");
+    seen.add(wf || agentId!);
+    return { id: r.id, wf, agentId, title: wf ? r.title : head?.agents[agentId!]?.label || r.title, icon: r.icon, status: r.status,
+      agents: r.agents, tokens: r.tokens, cost: r.cost, start: r.start, members: wf ? members.get(wf) || [] : [] };
+  });
+  agents.forEach((x) => {  // agents with no run summary yet still get a row
+    const k = x.wf || x.id; if (seen.has(k)) return; seen.add(k);
+    tasks.push({ id: k, wf: x.wf, agentId: x.wf ? null : x.id, title: x.wf ? `⚙ ${x.wf}` : x.label, status: "running",
+      agents: x.wf ? (members.get(x.wf) || []).length : 1, tokens: 0, cost: 0, start: null, members: x.wf ? members.get(x.wf) || [] : [] });
+  });
+  tasks.sort((x, y) => (+(y.status === "running") - +(x.status === "running")) || String(y.start || "").localeCompare(String(x.start || "")));
+  const plain = tasks.filter((t) => !t.wf), shown = new Set((all ? plain : plain.slice(0, PLAIN_SHOWN)).map((t) => t.id));
+  const visible = tasks.filter((t) => t.wf || shown.has(t.id));
+  const total = tasks.reduce((n, t) => n + (t.cost || 0), 0), nAgents = tasks.reduce((n, t) => n + (t.agents || 0), 0);
+  const close = () => setOpen(false);
+  const meta = (t: Task) => [t.start ? fmtDate(t.start) : null, t.wf ? `${t.agents} agent${t.agents === 1 ? "" : "s"}` : null,
+    t.tokens ? `${fmtTok(t.tokens)} tok` : null].filter(Boolean).join(" · ");
+  const side = (t: Task) => <span className="rs"><span className={"badge " + (t.status === "running" ? "running" : t.status)}>{t.status}</span>
+    {t.cost ? <small>{fmtUsd(t.cost)}</small> : null}</span>;
+  if (!count && !a) return <button disabled title="This chat started no subagent or workflow"><Bot /> Agent Tasks<span className="n">0</span></button>;
   return <span className="agmenu">
     <button className={a ? "on" : ""} aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-      title="Open one of this chat's agents"><Bot /> {a ? (label || a) : "Agent chats"}<span className="n">{count}</span> ▾</button>
-    {open && <div className="runs open agm" role="menu">
-      <div className="rh"><span>Agents of this chat</span><span>{list.length || "…"}</span></div>
-      {!head && <div className="skel skel-line" style={{ margin: 10 }} />}
-      {[...groups.entries()].map(([wf, xs]) => <div key={wf}>
-        <div className="agm-g">{wf ? `⚙ ${wf}` : "Plain agents"}</div>
-        {xs.map((x) => <a key={x.id} role="menuitem" className={"run" + (x.id === a ? " sel" : "")} href={href({ p, s, a: x.id })} onClick={() => setOpen(false)}>
-          <span className="ri"><Bot /></span><span style={{ minWidth: 0 }}><b>{x.label}</b><small>{x.id}</small></span><span /></a>)}
-      </div>)}
+      title="This chat's tasks: a workflow with its agents, or a single agent"><Bot /> {a ? (label || a) : "Agent Tasks"}<span className="n">{count}</span> ▾</button>
+    {open && <div className="runs open agm" role="menu" onClick={(e) => e.stopPropagation()}>
+      <div className="rh"><span>Agent Tasks</span><span>{resp ? `${tasks.length} tasks · ${nAgents} agents · ${fmtUsd(total)}` : "…"}</span></div>
+      {!resp && <div className="skel skel-line" style={{ margin: 10 }} />}
+      {visible.map((t) => t.wf ? <div key={t.id} className="agm-task">
+        <div className={"run task" + (t.members.some((m) => m.id === a) ? " sel" : "")}>
+          <button className="chev" aria-expanded={!!exp[t.id]} aria-label={(exp[t.id] ? "Hide" : "Show") + " this task's agents"}
+            onClick={() => setExp((e) => ({ ...e, [t.id]: !e[t.id] }))}>{exp[t.id] ? "▾" : "▸"}</button>
+          <a role="menuitem" className="tl" href={href({ p, s, tab: "mc", run: t.id })} onClick={close} title={`${t.title} · open in Mission Control (${t.id})`}>
+            <span className="ri"><RunIcon icon={t.icon} size={16} /></span><span style={{ minWidth: 0 }}><b>{t.title}</b><small>{meta(t)}</small></span></a>
+          {side(t)}</div>
+        {exp[t.id] && <div className="agm-members">{t.members.map((m) => <a key={m.id} role="menuitem" className={"mem" + (m.id === a ? " sel" : "")}
+          href={href({ p, s, a: m.id })} onClick={close} title={m.id}><Bot /> <span>{m.label}</span></a>)}</div>}
+      </div> : <a key={t.id} role="menuitem" className={"run" + (t.agentId === a ? " sel" : "")} href={href({ p, s, a: t.agentId! })} onClick={close} title={`${t.title} (${t.agentId})`}>
+        <span className="ri"><Bot /></span><span style={{ minWidth: 0 }}><b>{t.title}</b><small>{meta(t)}</small></span>{side(t)}</a>)}
+      {plain.length > PLAIN_SHOWN && <button className="agm-more" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${plain.length} single-agent tasks`}</button>}
     </div>}
   </span>;
 }

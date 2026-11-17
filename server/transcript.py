@@ -8,6 +8,7 @@ import json
 import os
 import re
 import threading
+import time
 from collections import OrderedDict
 
 import store as st
@@ -129,6 +130,8 @@ def normalize(d, limit=True):
             if bt == "text":
                 v, tr, n = cut(b.get("text", ""), L(TEXT_MAX))
                 out.append({**e, "k": "text", "text": v, "trunc": tr, "len": n})
+                if d.get("isApiErrorMessage"):   # Claude Code's synthetic "API Error: …" message that ends a turn
+                    out[-1]["apiErr"] = d.get("error") or "api_error"
             elif bt in ("thinking", "redacted_thinking"):
                 v, tr, n = cut(b.get("thinking", "") or "", L(TEXT_MAX))
                 out.append({**e, "k": "thinking", "text": v, "trunc": tr, "len": n,
@@ -159,6 +162,9 @@ def normalize(d, limit=True):
         content = d.get("content")
         v, tr, n = cut(result_text(content) if not isinstance(content, str) else content, L(META_MAX))
         e = {**base, "k": "system", "sub": sub, "text": v, "trunc": tr, "len": n, "level": d.get("level")}
+        for key in ("retryInMs", "retryAttempt", "maxRetries", "error", "cause"):   # api_error / retry entries, if written
+            if d.get(key) is not None:
+                e[key] = d[key] if not isinstance(d[key], (dict, list)) else json.dumps(d[key])[:300]
         if sub == "compact_boundary":
             cm = d.get("compactMetadata") or {}
             e["pre"], e["post"] = cm.get("preTokens"), cm.get("postTokens")
@@ -210,7 +216,11 @@ class Transcript:
                     self.entries[start].get("mid") == self.entries[start - 1].get("mid")):
                 start -= 1
             sl = self.entries[start: b]
-        return {"entries": sl, "start": start, "total": n, "epoch": self.epoch}
+        try:
+            mtime = os.path.getmtime(self.path)
+        except OSError:
+            mtime = 0
+        return {"entries": sl, "start": start, "total": n, "epoch": self.epoch, "mtime": mtime, "now": time.time()}
 
     def full(self, seq):
         """The untruncated version of one entry, re-read from its line's byte offset."""

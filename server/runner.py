@@ -93,6 +93,7 @@ class Run:
         self.status, self.exit, self.error = "starting", None, ""
         self.started, self.ended = time.time(), None
         self.events, self.partial, self.cost, self.result = [], "", None, None
+        self.tokens, self._msg_tokens = 0, 0   # output tokens: finished messages + the one streaming now
         self.proc, self.seq = None, 0
         self.lock = threading.Lock()
 
@@ -108,6 +109,7 @@ class Run:
                     "target": self.target, "fork": self.fork, "cwd": self.cwd, "model": self.model, "mode": self.mode,
                     "started": self.started, "ended": self.ended, "exit": self.exit, "error": self.error,
                     "cost": self.cost, "result": self.result, "partial": self.partial, "seq": self.seq,
+                    "tokens": self.tokens + self._msg_tokens,
                     "events": [e for e in self.events if e["n"] >= since]}
 
     # ---- stream-json parsing (one line of the CLI's stdout) ----
@@ -126,6 +128,14 @@ class Run:
                     self.seq += 1
                 elif ev.get("type") == "message_stop":
                     self.partial = ""
+                    if not sub:
+                        self.tokens += self._msg_tokens
+                        self._msg_tokens = 0
+                elif ev.get("type") in ("message_start", "message_delta") and not sub:
+                    u = (ev.get("message") or {}).get("usage") if ev.get("type") == "message_start" else ev.get("usage")
+                    if isinstance(u, dict) and u.get("output_tokens") is not None:
+                        self._msg_tokens = int(u["output_tokens"])
+                        self.seq += 1
             elif t == "assistant":
                 self.partial = ""
                 for b in (d.get("message") or {}).get("content") or []:
