@@ -7,7 +7,7 @@ export type Ev = { t: string | null; kind: string; text: string };
 export type Agent = {
   id: string; label: string; phase: string; status: string; tools: number; tokens: number; first: string | null;
   last: string | null; token_breakdown: Tok; cost: Tok; cost_total: number; priced: boolean; models: string[];
-  last_ev: string; last_text: string; events: Ev[]; n_events: number; agent_type: string; resumed?: boolean;
+  last_ev: string; last_text: string; events: Ev[]; n_events: number; agent_type: string; resumed?: boolean; stop?: string;
   ctx?: AgentCtx;
 };
 export type AgentCtx = { p: string; s: string; chat: string; project: string; run: string; wf: string | null; run_title: string };
@@ -20,7 +20,7 @@ export type RunSummary = { id: string; title: string; icon: string; status: stri
 export type RunData = { run: string; work: string; finished: boolean; feature: string; task: string; icon: string;
   generated_at: string; phases: Phase[]; agents: Agent[]; feed: FeedEv[]; files: FileRow[]; summary: RunSummary;
   workflow: boolean; src: { wf: string | null } };
-export type SessionRow = { id: string; title: string; prompt: string; mtime: number; active: boolean; msgs: number;
+export type SessionRow = { id: string; title: string; prompt: string; mtime: number; active: boolean; status: "running" | "stopped" | "idle"; msgs: number;
   prompts: number; agents: number; workflows: number; running: number; cost: number; cost_main: number; tokens: number;
   models: string[]; cwd: string; branch: string; first: string | null; last: string | null };
 export type Project = { slug: string; path: string; sessions: SessionRow[]; mtime: number };

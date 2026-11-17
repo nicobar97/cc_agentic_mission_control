@@ -92,7 +92,7 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
         {idx && q && !n && <div className="empty" style={{ margin: 10 }}>No chat matches “{q}”.</div>}
         {active.length > 0 && <>
           <div className="sec-h"><span className="eyebrow">Active now</span><span>{active.length}
-            <Info right label="Legend: active"><span className="li"><span className="pulse" /> a file of this chat (or of one of its agents) changed in the last 5 min</span><span className="li"><span className="pulse busy" /> agents are running</span></Info></span></div>
+            <Info right label="Legend: active"><span className="li"><span className="pulse" /> a file of this chat (or of one of its agents) changed in the last 5 min</span><span className="li"><span className="pulse busy" /> agents are running</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span></Info></span></div>
           {active.map(([p, s]) => <Row key={p.slug + s.id} p={p} s={s} sel={sel} showProject />)}
         </>}
         {starred.length > 0 && <>
@@ -101,7 +101,7 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
           {starred.map(([p, rows]) => group(p, rows, true))}
         </>}
         <div className="sec-h"><span>Projects</span><span>
-          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><b>☆</b> on a project (shown on hover) stars it to pin it on top</span></Info></span></div>
+          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><b>☆</b> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span></Info></span></div>
         {projects.map(([p, rows]) => group(p, rows, false))}
       </div>
     </nav>
@@ -116,7 +116,7 @@ function Row({ p, s, sel, showProject }: { p: Project; s: SessionRow; sel?: { p?
         <b>{s.active && <span className={"pulse" + (s.running ? " busy" : "")} />}<span>{s.title}</span></b>
         <small>{showProject && <span className="pj">{p.path.split("/").pop()} · </span>}{when(s.mtime)} · {s.msgs} msg{s.msgs === 1 ? "" : "s"}{s.agents ? <> · <Bot /> {s.agents}</> : null}{s.running ? ` · ${s.running} running` : ""}</small>
       </span>
-      <span className="rt"><span className="cost">{fmtUsd(s.cost)}</span></span>
+      <span className="rt">{s.status === "stopped" && <span className="badge stopped" title="the last turn was interrupted">stopped</span>}<span className="cost">{fmtUsd(s.cost)}</span></span>
     </a>
   );
 }
