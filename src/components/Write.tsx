@@ -88,7 +88,10 @@ export function Composer({ p, s }: { p: string; s: string }) {
   const [model, setModel] = useState("");
   const [mode, setMode] = useState("default");
   const [msg, setMsg] = useState("");
-  const [forceFork, setForceFork] = useState(false);
+  // why sends are forced into a fork: "live" clears by itself once the chat is idle again, "bg" (background session) does not
+  const [forceFork, setForceFork] = useState<"" | "live" | "bg">("");
+  useEffect(() => { setForceFork(""); }, [s]);
+  useEffect(() => { if (forceFork === "live" && o?.session && !o.session.live_elsewhere) { setForceFork(""); setMsg(""); } }, [o, forceFork]);
   const [sending, setSending] = useState(false);
   // up/down on the composer walks through the messages already sent from this chat (like a shell history)
   const hist = useRef<string[]>([]);
@@ -126,7 +129,7 @@ export function Composer({ p, s }: { p: string; s: string }) {
   };
   const myRuns = runs.filter((r) => r.target === s || r.session_id === s);
   const busy = myRuns.some((r) => !r.fork && (r.status === "running" || r.status === "starting"));
-  const fork = !!o?.session?.live_elsewhere || forceFork;
+  const fork = !!o?.session?.live_elsewhere || !!forceFork;
   // a fork becomes its own chat: open it as soon as its transcript appears
   const opened = useRef(new Set<string>());
   useEffect(() => {
@@ -139,7 +142,7 @@ export function Composer({ p, s }: { p: string; s: string }) {
     if (!lastRun || lastRun.status !== "error" || bgSeen.current.has(lastRun.id)) return;
     const all = (lastRun.error || "") + lastRun.events.map((e) => e.text).join("\n");
     if (/running in the background/i.test(all)) {
-      bgSeen.current.add(lastRun.id); setForceFork(true); if (!text) setText(lastSent.current);
+      bgSeen.current.add(lastRun.id); setForceFork("bg"); if (!text) setText(lastSent.current);
       setMsg("This chat is running as a background session, so it can't be resumed in place. Send again to fork it into a new chat.");
     }
   }, [lastRun?.id, lastRun?.status]);
@@ -150,7 +153,7 @@ export function Composer({ p, s }: { p: string; s: string }) {
     const r = await writeApi<RunSnap>("send", { p, s, prompt: text, model, mode, fork });
     setSending(false);
     if (r.ok) { noteRun(r.data); remember(text); setText(""); }
-    else { setMsg(r.data.error || `refused (${r.status})`); if (r.data.fork_offered) setForceFork(true); }
+    else { setMsg(r.data.error || `refused (${r.status})`); if (r.data.fork_offered) setForceFork("live"); }
   };
   const last = myRuns.filter((r) => !r.fork || !r.appeared).slice(-1)[0];
   return (
