@@ -133,7 +133,7 @@ export function Composer({ p, s }: { p: string; s: string }) {
   // a fork becomes its own chat: open it as soon as its transcript appears
   const opened = useRef(new Set<string>());
   useEffect(() => {
-    for (const r of myRuns) if (r.fork && r.session_id && r.appeared && !opened.current.has(r.id)) { opened.current.add(r.id); go({ p: r.project, s: r.session_id }); }
+    for (const r of myRuns) if (r.fork && r.session_id && r.appeared && !opened.current.has(r.id)) { opened.current.add(r.id); dispatchEvent(new CustomEvent("mc-hide", { detail: s })); go({ p: r.project, s: r.session_id }); }
   }, [myRuns]);
   // a chat that runs as a background session can't be resumed in place: retry as a fork, keeping the message
   const lastRun = myRuns.filter((r) => !r.fork).slice(-1)[0];

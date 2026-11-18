@@ -11,6 +11,15 @@ const readHidden = (): string[] => { try { const v = JSON.parse(localStorage.get
 function useHidden() {
   const [hidden, setHidden] = useState<string[]>(readHidden);
   const save = (next: string[]) => { setHidden(next); try { localStorage.setItem(HIDE_KEY, JSON.stringify(next)); } catch (_) { /* blocked storage: lasts for this page only */ } };
+  // write mode hides a chat's parent once a fork of it is opened ("mc-hide" event, so Write.tsx needs no import from here)
+  useEffect(() => {
+    const on = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail;
+      setHidden((h) => { if (h.includes(id)) return h; const next = [...h, id]; try { localStorage.setItem(HIDE_KEY, JSON.stringify(next)); } catch (_) { /* ignore */ } return next; });
+    };
+    addEventListener("mc-hide", on);
+    return () => removeEventListener("mc-hide", on);
+  }, []);
   return { hidden, hide: (id: string) => save([...hidden.filter((x) => x !== id), id]), unhide: (id: string) => save(hidden.filter((x) => x !== id)) };
 }
 const readStars = (): string[] => { if (STATIC && QS.get("stars")) return QS.get("stars")!.split(",").filter(Boolean); try { const v = JSON.parse(localStorage.getItem(STAR_KEY) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
