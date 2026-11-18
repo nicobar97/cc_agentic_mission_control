@@ -47,9 +47,14 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
     addEventListener("keydown", k); return () => removeEventListener("keydown", k);
   }, []);
 
-  const { active, projects, starred, n } = useMemo(() => {
+  const { active, projects, starred, n, hiddenRows } = useMemo(() => {
     const ql = q.trim().toLowerCase();
-    const hit = (p: Project, s: SessionRow) => (showHidden || !hidden.includes(s.id)) && (!ql || [s.title, s.prompt, p.path, s.branch, s.id, s.cwd].some((x) => String(x || "").toLowerCase().includes(ql)));
+    const match = (p: Project, s: SessionRow) => !ql || [s.title, s.prompt, p.path, s.branch, s.id, s.cwd].some((x) => String(x || "").toLowerCase().includes(ql));
+    const hit = (p: Project, s: SessionRow) => !hidden.includes(s.id) && match(p, s);
+    // hidden chats never mix into the lists above: they get a section of their own at the bottom
+    const hiddenRows: [Project, SessionRow][] = [];
+    for (const p of idx?.projects || []) for (const s of p.sessions) if (hidden.includes(s.id) && match(p, s)) hiddenRows.push([p, s]);
+    hiddenRows.sort((a, b) => b[1].mtime - a[1].mtime);
     const active: [Project, SessionRow][] = [];
     const projects: [Project, SessionRow[]][] = [];
     let n = 0;
@@ -70,8 +75,8 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
       starred.push([p, rows.filter((s) => !s.active)]);
     }
     active.sort((a, b) => b[1].mtime - a[1].mtime);
-    return { active, projects, starred, n };
-  }, [idx, q, stars, hidden, showHidden]);
+    return { active, projects, starred, n, hiddenRows };
+  }, [idx, q, stars, hidden]);
 
   const group = (p: Project, rows: SessionRow[], isStar: boolean) => {
     const isClosed = closed[p.slug] ?? false, show = all[p.slug] || q ? rows : rows.slice(0, SHOW);
@@ -123,6 +128,11 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
           <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><StarIcon /> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span><span className="li">✕ on a row (shown on hover) hides that chat from the list; nothing is deleted. "Show hidden chats" at the bottom brings them back</span></Info></span></div>
         {projects.map(([p, rows]) => group(p, rows, false))}
         {hidden.length > 0 && <button className="agm-more" onClick={() => setShowHidden((v) => !v)}>{showHidden ? "Hide hidden chats" : `Show hidden chats (${hidden.length})`}</button>}
+        {showHidden && <>
+          <div className="sec-h"><span>Hidden chats</span><span className="sec-r"><span className="cnt">{hiddenRows.length}</span></span></div>
+          {hiddenRows.length ? hiddenRows.map(([p, s]) => <Row key={p.slug + s.id} p={p} s={s} sel={sel} showProject hid onHide={() => unhide(s.id)} />)
+            : <div className="proj-empty">{q ? "No hidden chat matches" : "No hidden chats"}</div>}
+        </>}
       </div>
     </nav>
   );
