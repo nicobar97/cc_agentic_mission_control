@@ -70,7 +70,7 @@ body{overflow:hidden}
   border:1px solid color-mix(in srgb,var(--acc) 28%,var(--bd));border-radius:16px 16px 4px 16px;padding:10px 14px;box-shadow:var(--shadow)}
 .msg.asst .bubble{background:var(--card);border:1px solid var(--bd);border-radius:4px 16px 16px 16px;box-shadow:var(--shadow);padding:10px 14px;backdrop-filter:blur(10px);position:relative;overflow:hidden}
 .msg.asst .bubble::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,var(--acc),var(--acc2));opacity:.8}
-.msg.live .bubble::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 40%,color-mix(in srgb,var(--run) 8%,transparent) 50%,transparent 60%);background-size:250% 100%;animation:shimmer 2.6s linear infinite;pointer-events:none}
+.msg.pending .bubble::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 40%,color-mix(in srgb,var(--run) 8%,transparent) 50%,transparent 60%);background-size:250% 100%;animation:shimmer 2.6s linear infinite;pointer-events:none}
 .msg.new{animation:slide .55s cubic-bezier(.2,.8,.2,1) both}
 .blk{margin:6px 0}
 .blk:first-child{margin-top:0}.blk:last-child{margin-bottom:0}

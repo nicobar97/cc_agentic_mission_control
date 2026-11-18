@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- same mark as the favicon in index.html, scaled into the macOS icon grid (824 px square, 100 px margin) -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#ff8a3d"/>
+  <circle cx="512" cy="512" r="110" fill="#17171a"/>
+  <ellipse cx="512" cy="512" rx="292" ry="130" transform="rotate(-28 512 512)" fill="none" stroke="#17171a" stroke-width="55"/>
+</svg>

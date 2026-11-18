@@ -47,4 +47,4 @@ async function start() {
 
 app.on("before-quit", () => { app.isQuitting = true; if (server) server.kill(); });
 app.on("window-all-closed", () => app.quit());
-app.whenReady().then(() => start().catch((e) => { dialog.showErrorBox("Mission Control", String(e.message || e)); app.quit(); }));
+app.whenReady().then(() => { try { app.dock?.setIcon(path.join(ROOT, "build", "icon.png")); } catch (_) { /* packaged app: the .icns is used */ } return start(); }).catch((e) => { dialog.showErrorBox("Mission Control", String(e.message || e)); app.quit(); });

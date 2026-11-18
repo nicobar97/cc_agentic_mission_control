@@ -178,8 +178,8 @@ pre{font:var(--fs-sm)/1.55 var(--mono);background:var(--bg2);border:1px solid va
 .msg.user .bubble{width:fit-content;max-width:min(75ch,86%);margin-left:auto;background:var(--raised);border:1px solid var(--bd);border-radius:var(--r-lg);box-shadow:none;padding:10px 14px}
 .msg.asst .bubble{background:transparent;border:0;border-radius:0;box-shadow:none;padding:2px 0 2px 16px;backdrop-filter:none;overflow:visible}
 .msg.asst .bubble::before{width:2px;background:var(--bd);opacity:1;border-radius:2px}
-.msg.live .bubble::before{background:var(--run)}
-.msg.live .bubble::after{display:none}
+.msg.pending .bubble::before{background:var(--run)}
+.msg.pending .bubble::after{display:none}
 .blk{margin:8px 0}
 .fold{border-radius:var(--r-md);transition:border-color var(--dur) ease-out}
 .fold:hover{border-color:color-mix(in srgb,var(--fg) 16%,var(--bd))}

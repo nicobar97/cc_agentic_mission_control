@@ -251,8 +251,9 @@ function AsstTurn({ it, ctx }: { it: It; ctx: Ctx }) {
   const cost = it.blocks.reduce((s, b) => s + (b.usage?.cost || 0), 0);
   const out = it.blocks.reduce((s, b) => s + (b.usage?.tok.output || 0), 0);
   const pending = it.blocks.some((b) => b.k === "tool" && b.id && !ctx.results.has(b.id));
+  // the class is "pending", not "live": .live styles the header's live indicator (inline-flex) and broke this layout
   return (
-    <div className={"msg asst" + (pending ? " live" : "")}>
+    <div className={"msg asst" + (pending ? " pending" : "")}>
       <div className="who-row"><b>{ctx.isAgent ? "Agent" : "Claude"}</b>{model && <span className="mdl">{shortModel(model)}</span>}
         <span className="ts">{hhmmss(it.ts)}</span>{out ? <span className="ts" title="output tokens and estimated cost of this turn, list API prices">· ✦ {fmtTok(out)} · {fmtUsd(cost)}</span> : null}</div>
       <div className="bubble">{it.blocks.map((b) => <div className="blk" key={b.seq} data-seq={b.seq}><Block e={ctx.full[b.seq] || b} ctx={ctx} /></div>)}</div>
