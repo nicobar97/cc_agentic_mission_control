@@ -2,7 +2,7 @@
 // a "Trash" list in the sidebar and a notice in other tabs. The server does every check; the UI only explains.
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { agoSecs, api, fmtBytes, fmtDate, QS, STATIC, useChangeRev, useNow, useWriteMode, writeApi } from "../lib";
-import { Bot, Info, TrashIcon } from "./bits";
+import { Bot, ChevronIcon, Info, TrashIcon } from "./bits";
 
 type TrashInfo = { p: string; s: string; title: string; path: string; cwd: string; mtime: number; last: string | null; msgs: number;
   agents: number; workflows: number; size: number; files: number; has_dir: boolean; refused?: string };
@@ -134,7 +134,7 @@ export function TrashSection() {
   useEffect(() => { if (on) writeApi<{ items: TrashItem[] }>("trashed").then((r) => r.ok && setItems(r.data.items)); }, [on, v, rev]);
   if (!on || !items.length) return null;
   return <div className={"trashsec" + (open ? "" : " closed")}>
-    <div className="sec-h"><button className="trash-tg" aria-expanded={open} onClick={() => setOpen((o) => !o)}><span className="chev">▼</span> Trash</button><span>{items.length}
+    <div className="sec-h"><button className="trash-tg" aria-expanded={open} onClick={() => setOpen((o) => !o)}><ChevronIcon size={12} className="chev" /> Trash</button><span className="sec-r"><span className="cnt">{items.length}</span>
       <Info right label="Legend: trash"><span className="li">Chats Mission Control moved to <code>~/.Trash/Mission Control/</code></span><span className="li"><b>Restore</b> moves one back to its original place, unless something is there now</span><span className="li">Emptying the macOS Trash deletes them for good</span></Info></span></div>
     {open && items.map((x) => <div key={x.p + x.entry} className="trow">
       <span style={{ minWidth: 0 }}><b title={x.title}>{x.title || x.s}</b>

@@ -1,7 +1,7 @@
 // Write mode: start chats and send messages through the local `claude` CLI (headless). Off by default.
 import { useEffect, useRef, useState } from "react";
 import { fmtUsd, go, hhmmss, Index, KIND, noteRun, dropRun, RunSnap, setWriteMode, TOKEN, useChangeRev, useNow, useRuns, useWriteMode, writeApi, WriteOptions, shortModel } from "../lib";
-import { Folder, Info } from "./bits";
+import { Folder, Info, PencilIcon } from "./bits";
 
 const MODE_HELP = <>
   <span className="li"><b>default</b> Claude can read and answer; anything that would ask for your approval (edits, most shell commands) is refused, because a headless run has nobody to approve it</span>
@@ -13,9 +13,9 @@ const MODE_HELP = <>
 export function WriteToggle() {
   const on = useWriteMode();
   return <span className="wtoggle">
-    <button className={"switch" + (on ? " on" : "")} role="switch" aria-checked={on} disabled={!TOKEN}
+    <button className={"switch" + (on ? " on" : "")} role="switch" aria-checked={on} aria-label="Write mode" disabled={!TOKEN}
       title={TOKEN ? "Write mode: start chats and send messages" : "Write mode needs the page served by the Mission Control server"}
-      onClick={() => setWriteMode(!on)}><i />✎ Write mode</button>
+      onClick={() => setWriteMode(!on)}><i /><PencilIcon size={12} /><span className="tlab">Write mode</span></button>
     <Info right label="Legend: write mode">
       <span className="li"><b>Off</b> (default) Mission Control only reads ~/.claude/projects</span>
       <span className="li"><b>On</b> a composer appears under each chat and “＋ New chat” in the sidebar. Messages run the local <code>claude</code> CLI headless, in the chat's own folder; the reply lands in the transcript and shows here live</span>

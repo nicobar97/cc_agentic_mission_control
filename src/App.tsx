@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { agoSecs, api, fmtDate, fmtTok, fmtUsd, go, href, Head, Index, McResp, Route, STATIC, startLive, useChangeRev, useLive, useNow, useRoute, when } from "./lib";
-import { Bot, Info, Logo, RunIcon } from "./components/bits";
+import { agoSecs, api, QS, fmtDate, fmtTok, fmtUsd, go, href, Head, Index, McResp, Route, STATIC, startLive, useChangeRev, useLive, useNow, useRoute, when } from "./lib";
+import { Bot, ChatIcon, ChevronIcon, GearIcon, Info, Logo, RunIcon } from "./components/bits";
 import { Sidebar } from "./components/Sidebar";
 import { Transcript } from "./components/Transcript";
 import { MissionControl } from "./components/MissionControl";
@@ -97,17 +97,18 @@ function SessionView({ route, idx }: { route: Route; idx: Index | null }) {
     <>
       <div className="shead">
         <div className="crumbs">
-          <button className="back" title={a ? "Back to Mission Control" : "Back to the overview"} onClick={back}>←</button>
-          {route.from === "home" && <><a href={href({})}>Home</a><span className="sep">›</span></>}
-          <a href={href({})} title={proj?.path}>{(proj?.path || p).split("/").pop()}</a><span className="sep">›</span>
-          {a ? <a href={href({ p, s })} title={title}>{title}</a> : <span className="cur" title={title}>{title}</span>}
-          {a && ag?.wf && <><span className="sep">›</span><a href={href({ p, s, tab: "mc", run: ag.wf })}>⚙ {ag.wf}</a></>}
-          {a && <><span className="sep">›</span><span className="cur"><Bot /> {ag?.label || a}</span></>}
+          <button className="back" title={a ? "Back to Mission Control" : "Back to the overview"} aria-label={a ? "Back to Mission Control" : "Back to the overview"} onClick={back}>←</button>
+          {route.from === "home" && <><a className="cr" href={href({})}>Home</a><span className="sep">›</span></>}
+          <a className="cr" href={href({})} title={proj?.path}>{(proj?.path || p).split("/").pop()}</a><span className="sep">›</span>
+          {a ? <a className="cr ttl" href={href({ p, s })} title={title}>{title}</a> : <span className="cur ttl" title={title}>{title}</span>}
+          {a && ag?.wf && <><span className="sep">›</span><a className="cr" href={href({ p, s, tab: "mc", run: ag.wf })} title={ag.wf}><GearIcon size={12} /><span>{ag.wf}</span></a></>}
+          {a && <><span className="sep">›</span><span className="cur ttl" title={ag?.label || a}><Bot /><span>{ag?.label || a}</span></span></>}
         </div>
         <div className="tabs"><div className="seg">
-          <button className={tab === "chat" && !a ? "on" : ""} onClick={() => go({ p, s })}>💬 Conversation</button>
+          <button className={tab === "chat" && !a ? "on" : ""} onClick={() => go({ p, s })} title="Conversation" aria-label="Conversation"><ChatIcon /><span className="tlab">Conversation</span></button>
           <AgentsMenu p={p} s={s} a={a} label={ag?.label} count={nAgents} />
-          <button className={tab === "mc" ? "on" : ""} onClick={() => go({ p, s, tab: "mc" })}><Logo size={13} /> Mission Control<span className="n" title="subagents and workflow agents"><Bot /> {nAgents}</span>{row?.running ? <span className="n" style={{ color: "var(--run)" }} title="running">● {row.running}</span> : null}</button>
+          <button className={tab === "mc" ? "on" : ""} onClick={() => go({ p, s, tab: "mc" })} title="Mission Control" aria-label="Mission Control"><Logo size={14} /><span className="tlab">Mission Control</span>
+            <span className="n" title="subagents and workflow agents">{nAgents}</span>{row?.running ? <span className="n run" title="running">{row.running}</span> : null}</button>
         </div></div>
       </div>
       {trashed ? <TrashedNotice p={p} entry={trashed.entry} /> : tab === "mc" ? <div className="scroll"><MissionControl p={p} s={s} run={route.run} onMeta={onMeta} chatCost={row?.cost_main} /></div>
@@ -123,7 +124,7 @@ const PLAIN_SHOWN = 8;
 /** "Missions ▾": every mission of this chat as one block. A workflow is one mission with several agents; a plain agent is a mission of one.
  *  Figures come from the run summaries the run switcher uses (/api/mc history), so the two always agree. */
 function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: string; label?: string; count: number }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(STATIC && QS.get("agm") === "1");
   const [resp, setResp] = useState<McResp | null>(null);
   const [exp, setExp] = useState<Record<string, boolean>>({});
   const [all, setAll] = useState(false);
@@ -143,7 +144,7 @@ function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: strin
   });
   agents.forEach((x) => {  // agents with no run summary yet still get a row
     const k = x.wf || x.id; if (seen.has(k)) return; seen.add(k);
-    tasks.push({ id: k, wf: x.wf, agentId: x.wf ? null : x.id, title: x.wf ? `⚙ ${x.wf}` : x.label, status: "running",
+    tasks.push({ id: k, wf: x.wf, agentId: x.wf ? null : x.id, title: x.wf ? x.wf : x.label, status: "running",
       agents: x.wf ? (members.get(x.wf) || []).length : 1, tokens: 0, cost: 0, start: null, members: x.wf ? members.get(x.wf) || [] : [] });
   });
   tasks.sort((x, y) => (+(y.status === "running") - +(x.status === "running")) || String(y.start || "").localeCompare(String(x.start || "")));
@@ -155,24 +156,25 @@ function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: strin
     t.tokens ? `${fmtTok(t.tokens)} tok` : null].filter(Boolean).join(" · ");
   const side = (t: Task) => <span className="rs"><span className={"badge " + (t.status === "running" ? "running" : t.status)}>{t.status}</span>
     {t.cost ? <small>{fmtUsd(t.cost)}</small> : null}</span>;
-  if (!count && !a) return <button disabled title="This chat started no subagent or workflow"><Bot /> Missions<span className="n">0</span></button>;
+  if (!count && !a) return <button disabled title="This chat started no subagent or workflow" aria-label="Missions"><Bot size={14} /><span className="tlab">Missions</span><span className="n">0</span></button>;
   return <span className="agmenu">
     <button className={a ? "on" : ""} aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
-      title="This chat's missions: a workflow with its agents, or a single agent"><Bot /> {a ? (label || a) : "Missions"}<span className="n">{count}</span> ▾</button>
+      title={a ? `${label || a} · this chat's missions` : "This chat's missions: a workflow with its agents, or a single agent"} aria-label={a ? `Mission: ${label || a}` : "Missions"}>
+      <Bot size={14} /><span className="tlab">{a ? (label || a) : "Missions"}</span><span className="n">{count}</span><ChevronIcon size={12} className="dd" /></button>
     {open && <div className="runs open agm" role="menu" onClick={(e) => e.stopPropagation()}>
       <div className="rh"><span>Missions</span><span>{resp ? `${tasks.length} missions · ${nAgents} agents · ${fmtUsd(total)}` : "…"}</span></div>
       {!resp && <div className="skel skel-line" style={{ margin: 10 }} />}
       {visible.map((t) => t.wf ? <div key={t.id} className="agm-task">
         <div className={"run task" + (t.members.some((m) => m.id === a) ? " sel" : "")}>
           <button className="chev" aria-expanded={!!exp[t.id]} aria-label={(exp[t.id] ? "Hide" : "Show") + " this task's agents"}
-            onClick={() => setExp((e) => ({ ...e, [t.id]: !e[t.id] }))}>{exp[t.id] ? "▾" : "▸"}</button>
-          <a role="menuitem" className="tl" href={href({ p, s, tab: "mc", run: t.id })} onClick={close} title={`${t.title} · open in Mission Control (${t.id})`}>
+            onClick={() => setExp((e) => ({ ...e, [t.id]: !e[t.id] }))}><ChevronIcon size={12} className={exp[t.id] ? "" : "rot"} /></button>
+          <a role="menuitem" className="tlab" href={href({ p, s, tab: "mc", run: t.id })} onClick={close} title={`${t.title} · open in Mission Control (${t.id})`}>
             <span className="ri"><RunIcon icon={t.icon} size={16} /></span><span style={{ minWidth: 0 }}><b>{t.title}</b><small>{meta(t)}</small></span></a>
           {side(t)}</div>
         {exp[t.id] && <div className="agm-members">{t.members.map((m) => <a key={m.id} role="menuitem" className={"mem" + (m.id === a ? " sel" : "")}
           href={href({ p, s, a: m.id })} onClick={close} title={m.id}><Bot /> <span>{m.label}</span></a>)}</div>}
       </div> : <a key={t.id} role="menuitem" className={"run" + (t.agentId === a ? " sel" : "")} href={href({ p, s, a: t.agentId! })} onClick={close} title={`${t.title} (${t.agentId})`}>
-        <span className="ri"><Bot /></span><span style={{ minWidth: 0 }}><b>{t.title}</b><small>{meta(t)}</small></span>{side(t)}</a>)}
+        <span className="ri"><Bot size={16} /></span><span style={{ minWidth: 0 }}><b>{t.title}</b><small>{meta(t)}</small></span>{side(t)}</a>)}
       {plain.length > PLAIN_SHOWN && <button className="agm-more" onClick={() => setAll((v) => !v)}>{all ? "Show fewer" : `Show all ${plain.length} single-agent missions`}</button>}
     </div>}
   </span>;

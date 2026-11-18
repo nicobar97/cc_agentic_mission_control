@@ -5,7 +5,7 @@ import {
   Agent, api, attention, ago, fmtDate, fmtDur, fmtTok, fmtUsd, go, hhmmss, KIND, McResp, quietSecs, RunData, RunSummary,
   shortModel, STATIC, sumCost, sumTok, t, useChangeRev, useNow, view,
 } from "../lib";
-import { Info, RunIcon, showTip as setTipGlobal, Tip, useFeedHeight } from "./bits";
+import { ChevronIcon, ClockIcon, Info, ListIcon, RunIcon, showTip as setTipGlobal, Tip, useFeedHeight } from "./bits";
 export { Tip };   // the shared cursor tooltip (also used by the conversation outline)
 import { openDiff } from "./Diff";
 
@@ -74,7 +74,7 @@ export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
   return (
     <div className="wrap mcwrap" ref={wrapRef}>
       <header className="mc-header">
-        <div className="brand"><div className="logo"><RunIcon icon={d.icon} /></div>
+        <div className="brand"><div className="logo"><RunIcon icon={d.icon} size={18} /></div>
           <div><div className="eyebrow">{d.feature || d.work}</div><h1 title={d.task}>{d.task || "Agents"}</h1>
             <div className="sub" id="sub">{`${d.work} · mission ${d.run} · ${isPast ? "history · " + fmtDate(d.summary?.start) + " · " : ""}${d.finished ? "finished" : "in progress"}`}</div></div></div>
         <div className="tools">
@@ -84,12 +84,12 @@ export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
           <Info right label="Legend: header">
             <span className="li"><b>Runs</b> every workflow of this chat is a run, and so is every plain agent</span>
             <span className="li"><b>Attention</b> filter = quiet or failed agents</span>
-            <span className="li"><b>🕘 History</b> every run of this chat: pick one to see its full dashboard; the live run is the default</span>
+            <span className="li"><ClockIcon /> <b>History</b> every run of this chat: pick one to see its full dashboard; the live run is the default</span>
             <span className="li">Keys: <kbd>/</kbd> search · <kbd>r</kbd> runs · <kbd>t</kbd> theme · <kbd>esc</kbd> close</span>
           </Info>
           {isPast && liveId ? <button className="btn live-btn" title="Back to the live run" onClick={() => select(null)}>● Live</button> : null}
           <div className="runsw">
-            <button className="btn" title="Missions (r)" onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}>🕘 <span>{H.length ? `${H.length} mission${H.length === 1 ? "" : "s"}` : "Missions"}</span> ▾</button>
+            <button className="btn" title="Missions (r)" onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}><ClockIcon /><span>{H.length ? `${H.length} mission${H.length === 1 ? "" : "s"}` : "Missions"}</span><ChevronIcon size={12} /></button>
             <RunsMenu open={menu} hist={H} cur={d.run} liveId={liveId} onPick={select} />
           </div>
         </div>
@@ -108,7 +108,7 @@ export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
           <span className="li"><b>Edge colour</b></span><span className="li"><span className="ln" style={{ background: "var(--run)" }} />running</span><span className="li"><span className="ln" style={{ background: "var(--ok)" }} />done</span><span className="li"><span className="ln" style={{ background: "var(--idle)" }} />quiet: running, silent for over 10 min</span><span className="li"><span className="ln" style={{ background: "var(--bad)" }} />failed</span><span className="li"><span className="ln" style={{ background: "var(--mut)" }} />stopped: killed or interrupted by the user, or silent for 45 min</span>
           <span className="li"><b>Meta</b> 🔧 tool calls · ✦ output tokens · ⏱ active time</span>
           <span className="li"><b>Activity bars</b> = last 36 actions, oldest left</span>{Object.entries(KIND).map(([k, [l, c]]) => <span key={k} className="li"><span className="sw" style={{ background: k === "tool" ? "var(--bg2)" : c, border: k === "tool" ? "1px solid var(--bd)" : undefined }} />{k === "tool" ? "other tool" : l}</span>)}
-          <span className="li">Click a card to open the agent's chat · click a bar or ☰ for its timeline</span></Info></span>
+          <span className="li">Click a card to open the agent's chat · click a bar or the list button for its timeline</span></Info></span>
           <span>{`${d.agents.filter(matches).length} of ${d.agents.length}`}</span></h2>
         <Grid d={d} list={d.agents.filter(matches)} isPast={isPast} onOpen={(id, n) => setOpen({ id, n })} onChat={openChat} />
         <h2 style={{ marginTop: 22 }}><span>Deliverables<Info label="Legend: deliverables"><span className="li">Files the run's agents wrote or edited, newest first (taken from their Write / Edit calls)</span><span className="li"><span className="ln" style={{ background: "var(--ok)" }} /><b>green edge</b> written in the last 5 min</span><span className="li"><b>mentions</b> on review files = times "blocker / major / minor" appear (a rough hint)</span><span className="li">Hover a file for its sections · click it for a git-style diff of every change</span></Info></span><span>{d.files.length} files</span></h2>
@@ -190,7 +190,7 @@ function Hero({ d, hist, isPast, chatCost }: { d: RunData; hist: RunSummary[]; i
         const runsCost = hist.reduce((n, r) => n + (r.cost || 0), 0), runsTok = hist.reduce((n, r) => n + (r.tokens || 0), 0);
         const nAg = hist.reduce((n, r) => n + (r.agents || 0), 0);
         return <>
-          {hist.length > 1 && <Stat k="Missions · agents" hint={`Every mission of this chat: ${hist.length} missions, ${nAg} agents, ${fmtTok(runsTok)} tokens (input, output, cache). The main conversation is counted separately in "This chat". Open 🕘 to switch mission.`}>
+          {hist.length > 1 && <Stat k="Missions · agents" hint={`Every mission of this chat: ${hist.length} missions, ${nAg} agents, ${fmtTok(runsTok)} tokens (input, output, cache). The main conversation is counted separately in "This chat". Open the missions menu to switch mission.`}>
             {fmtUsd(runsCost)}<span className="sub"> · {hist.length} missions</span></Stat>}
           {chatCost != null && <Stat k="This chat" hint="The main conversation itself, without its agents: every message of the chat transcript, deduped per message id and priced per model at list API prices">{fmtUsd(chatCost)}</Stat>}
           {chatCost != null && <Stat k="Chat total" hint={`This chat ${fmtUsd(chatCost)} + its agents ${fmtUsd(runsCost)}. The same figure as the chat's row in the sidebar.`}>{fmtUsd(chatCost + runsCost)}</Stat>}
@@ -241,7 +241,7 @@ export const Card = memo(function Card({ a, isPast, idx, first, onOpen, onChat, 
       onClick={(e) => { const b = (e.target as HTMLElement).closest(".spark i[data-k]") as HTMLElement | null;
         if (b) { onOpen(shown.id, +b.dataset.n!); setTipGlobal(null); } else onChat(shown.id); }}>
       <div className="ch"><b>{shown.label}</b><span className="acts">
-        <button className="iconbtn" title="Timeline and latest reasoning" onClick={(e) => { e.stopPropagation(); onOpen(shown.id, null); }}>☰</button>
+        <button className="iconbtn" title="Timeline and latest reasoning" aria-label="Timeline and latest reasoning" onClick={(e) => { e.stopPropagation(); onOpen(shown.id, null); }}><ListIcon /></button>
         <Badge a={shown} /></span></div>
       <div className="meta">{(shown.models || []).map((m) => <span key={m} className="mdl" title="model">{shortModel(m)}</span>)}
         <span title="phase">{shown.phase || shown.agent_type || "—"}</span><span title="tool calls">🔧 {shown.tools}</span><span title="output tokens">✦ {fmtTok(shown.tokens)}</span>

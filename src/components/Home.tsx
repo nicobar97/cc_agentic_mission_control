@@ -2,14 +2,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Agent, AgentCtx, agoSecs, api, FeedEv, fmtUsd, go, Index, STATIC, useChangeRev, useNow, when } from "../lib";
 import { Card, Drawer, Feed, matchAgent, Tip } from "./MissionControl";
-import { Bot, Info, Logo, useFeedHeight } from "./bits";
+import { Bot, ChatIcon, Info, Logo, useFeedHeight } from "./bits";
 
 type AgentsResp = { state: string; total: number; agents: Agent[]; feed: (FeedEv & { ctx: AgentCtx })[] };
 
 const ctxLine = (a: Agent) => {
   const c = a.ctx!;
   const proj = (c.project || "").split("/").pop();
-  return [`💬 ${c.chat}`, proj, c.wf ? `⚙ ${c.wf}` : null, a.phase || null].filter(Boolean).join(" · ");
+  return [c.chat, proj, c.wf || null, a.phase || null].filter(Boolean).join(" · ");
 };
 const firstLine = (s: string) => (s || "").replace(/[#*`>_]/g, "").split("\n").map((x) => x.trim()).find(Boolean) || "";
 
@@ -66,7 +66,7 @@ export function Home({ idx }: { idx: Index | null }) {
           <input ref={qRef} type="search" placeholder="Search agents, chats, activity…  ( / )" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="seg">{[["all", "All"], ["running", "Running"], ["done", "Done"], ["attention", "Attention"]].map(([f, l]) =>
             <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{l}</button>)}</div>
-          <Info right label="Legend: home"><span className="li"><b>Running now</b> every subagent and workflow agent still running, in any chat</span><span className="li"><b>Recently finished</b> agents that finished or stopped in the last 24 h, with the first line of their final report</span><span className="li">Cards, bars and the drawer work as in Mission Control: click a card for the agent's chat, ☰ or a bar for its timeline</span><span className="li">Keys: <kbd>/</kbd> search · <kbd>esc</kbd> close</span></Info>
+          <Info right label="Legend: home"><span className="li"><b>Running now</b> every subagent and workflow agent still running, in any chat</span><span className="li"><b>Recently finished</b> agents that finished or stopped in the last 24 h, with the first line of their final report</span><span className="li">Cards, bars and the drawer work as in Mission Control: click a card for the agent's chat, the list button or a bar for its timeline</span><span className="li">Keys: <kbd>/</kbd> search · <kbd>esc</kbd> close</span></Info>
         </div>
       </header>
       <section className="main"><div>
@@ -84,7 +84,7 @@ export function Home({ idx }: { idx: Index | null }) {
           <div className="grid">{chats.map(({ p, s }) => <div key={p.slug + s.id} className={"card " + (s.running ? "running" : "done")} role="button" tabIndex={0}
             onClick={() => go({ p: p.slug, s: s.id })} onKeyDown={(e) => e.key === "Enter" && go({ p: p.slug, s: s.id })}>
             <div className="ch"><b>{s.title}</b><span className={"badge " + (s.running ? "running" : "done")}>{s.running ? `${s.running} running` : "active"}</span></div>
-            <div className="meta"><span className="mdl">{p.path.split("/").pop()}</span><span>💬 {s.msgs}</span><span><Bot /> {s.agents}</span><span>💲 {fmtUsd(s.cost)}</span><span>{agoSecs(now / 1000 - s.mtime)}</span></div>
+            <div className="meta"><span className="mdl">{p.path.split("/").pop()}</span><span><ChatIcon size={12} /> {s.msgs}</span><span><Bot /> {s.agents}</span><span>💲 {fmtUsd(s.cost)}</span><span>{agoSecs(now / 1000 - s.mtime)}</span></div>
             <div className="last">{s.prompt || "—"}</div></div>)}</div>
         </>}
       </div>

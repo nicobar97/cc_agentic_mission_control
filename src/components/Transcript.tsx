@@ -239,7 +239,7 @@ function MetaItem({ e, ctx }: { e: Entry; ctx: Ctx }) {
   const first = txt.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 160);
   const title = hand ? "Agent hand-back" : txt.startsWith("Base directory for this skill") ? "Skill loaded" : "System context";
   return <div className="msg"><Fold className="meta-f" head={<>
-    <span className="nm">{hand ? "↩" : "⚙"} {title}</span>
+    <span className="nm">{title}</span>
     {hand && <button className="linkbtn" onClick={(ev) => { ev.stopPropagation(); go({ p: elsewhere?.p || ctx.p, s: elsewhere?.s || ctx.s, a: from![1] }); }}>{hand.label} ↗</button>}
     {handMissing && <span className="linkbtn off" aria-disabled="true" onClick={(ev) => ev.stopPropagation()}>agent chat<Info right label="Why the agent chat is unavailable">No transcript for agent {from![1]} in this chat: Claude Code removed it (cleanupPeriodDays, 30 days by default), or it was never written.</Info></span>}
     <span className="ds">{first}</span><span className="ts">{hhmmss(e.ts)}</span></>}>
@@ -289,7 +289,7 @@ function ToolCall({ e, ctx }: { e: Entry; ctx: Ctx }) {
       ? <span className="linkbtn off" aria-disabled="true" onClick={(ev) => ev.stopPropagation()}>Open agent chat<Info right label="Why the agent chat is unavailable">{L?.missing || (ctx.head ? "The agent's id isn't known yet: the link appears as soon as the agent starts." : "Loading…")}</Info></span>
     : runId ? <button className="linkbtn" onClick={(ev) => { ev.stopPropagation(); go({ p: ctx.p, s: ctx.s, tab: "mc", run: runId }); }}>Open in Mission Control ↗</button>
     : ["Write", "Edit", "MultiEdit"].includes(name) && e.input?.file_path && !r?.err
-      ? <button className="linkbtn" title="Git-style diff of every change to this file in the chat" onClick={(ev) => { ev.stopPropagation(); openDiff({ p: ctx.p, s: ctx.s, path: String(e.input.file_path), id: e.id }); }}>± diff</button> : null;
+      ? <button className="linkbtn" title="Git-style diff of every change to this file in the chat" onClick={(ev) => { ev.stopPropagation(); openDiff({ p: ctx.p, s: ctx.s, path: String(e.input.file_path), id: e.id }); }}>Diff</button> : null;
   return (
     <Fold className={"tool-f" + (r?.err ? " err" : "")} head={<>
       <span className={"kdot " + (e.kind || "tool")} /><span className="nm">{name}</span><span className="ds" title={desc}>{desc}</span>{link}{status}<span className="ts">{hhmmss(e.ts)}</span></>}>

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtUsd, href, Index, Project, QS, SessionRow, STATIC, useWriteMode, when } from "../lib";
-import { Bot, Info, Logo } from "./bits";
+import { Bot, ChevronIcon, Info, Logo, StarIcon } from "./bits";
 import { NewChat } from "./Write";
 import { TrashButton, TrashSection } from "./Trash";
 
 const SHOW = 6;
 const STAR_KEY = "mc.starredProjects";   // browser-only: an ordered list of project slugs (no server write)
-const readStars = (): string[] => { try { const v = JSON.parse(localStorage.getItem(STAR_KEY) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
+const readStars = (): string[] => { if (STATIC && QS.get("stars")) return QS.get("stars")!.split(",").filter(Boolean); try { const v = JSON.parse(localStorage.getItem(STAR_KEY) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
 function useStars() {
   const [stars, setStars] = useState<string[]>(readStars);
   useEffect(() => { const f = (e: StorageEvent) => { if (e.key === STAR_KEY) setStars(readStars()); }; addEventListener("storage", f); return () => removeEventListener("storage", f); }, []);
@@ -70,9 +70,9 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
       <div className="proj-h" title={p.path}>
         <button className="proj-tg" aria-expanded={!isClosed} onClick={flip}
           onKeyDown={(e) => { if (isStar && e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) { e.preventDefault(); move(p.slug, stars.indexOf(p.slug) + (e.key === "ArrowUp" ? -1 : 1)); } }}>
-          <span className="chev">▼</span><span className="pn"><bdi>{p.path.replace(/^\/Users\/[^/]+/, "~")}</bdi></span><span className="cnt">{rows.length}</span></button>
+          <ChevronIcon size={12} className="chev" /><span className="pn"><bdi>{p.path.replace(/^\/Users\/[^/]+/, "~")}</bdi></span><span className="cnt">{rows.length}</span></button>
         <button className={"star" + (isStar ? " on" : "")} aria-pressed={isStar} aria-label={isStar ? `Unstar ${p.path}` : `Star ${p.path} to pin it on top`}
-          title={isStar ? "Unstar" : "Star to pin on top"} onClick={() => toggle(p.slug)}>{isStar ? "★" : "☆"}</button>
+          title={isStar ? "Unstar" : "Star to pin on top"} onClick={() => toggle(p.slug)}><StarIcon on={isStar} /></button>
       </div>
       {!isClosed && <>{show.map((s) => <Row key={s.id} p={p} s={s} sel={sel} />)}
         {isStar && !rows.length && <div className="proj-empty">{q ? "No match in this project" : "Its chats are all in Active now"}</div>}
@@ -92,17 +92,17 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
         {!idx && <div aria-label="Indexing ~/.claude/projects">{Array.from({ length: 9 }, (_, i) => <div key={i} style={{ padding: "8px 10px" }}><div className="skel skel-line" style={{ width: `${60 + (i * 13) % 35}%`, margin: "4px 0" }} /><div className="skel skel-line" style={{ width: "40%", height: 9, margin: "6px 0 0" }} /></div>)}</div>}
         {idx && q && !n && <div className="empty" style={{ margin: 10 }}>No chat matches “{q}”.</div>}
         {active.length > 0 && <>
-          <div className="sec-h"><span className="eyebrow">Active now</span><span>{active.length}
+          <div className="sec-h"><span className="eyebrow">Active now</span><span className="sec-r"><span className="cnt">{active.length}</span>
             <Info right label="Legend: active"><span className="li"><span className="pulse" /> a file of this chat (or of one of its agents) changed in the last 5 min</span><span className="li"><span className="pulse busy" /> agents are running</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span></Info></span></div>
           {active.map(([p, s]) => <Row key={p.slug + s.id} p={p} s={s} sel={sel} showProject />)}
         </>}
         {starred.length > 0 && <>
-          <div className="sec-h"><span>Starred</span><span>{starred.length}
-            <Info right label="Legend: starred"><span className="li"><b>★</b> starred projects stay on top, in the order you starred them</span><span className="li">Drag a starred project to reorder it, or press <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> on its name</span><span className="li">Stars are saved in this browser only</span></Info></span></div>
+          <div className="sec-h"><span>Starred</span><span className="sec-r"><span className="cnt">{starred.length}</span>
+            <Info right label="Legend: starred"><span className="li"><StarIcon on /> starred projects stay on top, in the order you starred them</span><span className="li">Drag a starred project to reorder it, or press <kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> on its name</span><span className="li">Stars are saved in this browser only</span></Info></span></div>
           {starred.map(([p, rows]) => group(p, rows, true))}
         </>}
-        <div className="sec-h"><span>Projects</span><span>
-          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><b>☆</b> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span><span className="li">In write mode, the trash icon on a row (shown on hover) moves that chat to the macOS Trash, after a confirmation</span></Info></span></div>
+        <div className="sec-h"><span>Projects</span><span className="sec-r">
+          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><StarIcon /> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span><span className="li">In write mode, the trash icon on a row (shown on hover) moves that chat to the macOS Trash, after a confirmation</span></Info></span></div>
         {projects.map(([p, rows]) => group(p, rows, false))}
         <TrashSection />
       </div>
@@ -117,12 +117,11 @@ function Row({ p, s, sel, showProject }: { p: Project; s: SessionRow; sel?: { p?
   const write = useWriteMode();
   return (
     <div className={"chatrow" + (write ? " w" : "") + (HOVER === s.id ? " hov" : "")}>
-    <a className={"chat" + (on ? " sel" : "")} href={href({ p: p.slug, s: s.id })} aria-current={on ? "page" : undefined} title={`${s.title}\n${s.prompt}\n${s.cwd}${s.branch ? " · " + s.branch : ""}`}>
-      <span style={{ minWidth: 0 }}>
-        <b>{s.active && <span className={"pulse" + (s.running ? " busy" : "")} />}<span>{s.title}</span></b>
-        <small>{showProject && <span className="pj">{p.path.split("/").pop()} · </span>}{when(s.mtime)} · {s.msgs} msg{s.msgs === 1 ? "" : "s"}{s.agents ? <> · <Bot /> {s.agents}</> : null}{s.running ? ` · ${s.running} running` : ""}</small>
-      </span>
-      <span className="rt">{s.status === "stopped" && <span className="badge stopped" title="the last turn was interrupted">stopped</span>}<span className="cost">{fmtUsd(s.cost)}</span></span>
+    <a className={"chat" + (on ? " sel" : "") + (s.active ? " act" : "")} href={href({ p: p.slug, s: s.id })} aria-current={on ? "page" : undefined} title={`${s.title}\n${s.prompt}\n${s.cwd}${s.branch ? " · " + s.branch : ""}`}>
+      {s.active && <span className={"pulse" + (s.running ? " busy" : "")} />}
+      <b>{s.title}</b><span className="cost">{fmtUsd(s.cost)}</span>
+      <small>{showProject && <span className="pj">{p.path.split("/").pop()} · </span>}{when(s.mtime)} · {s.msgs} msg{s.msgs === 1 ? "" : "s"}{s.agents ? <> · <Bot /> {s.agents}</> : null}{s.running ? ` · ${s.running} running` : ""}</small>
+      <span className="rt">{s.status === "stopped" && <span className="badge stopped" title="the last turn was interrupted">stopped</span>}</span>
     </a>
     {write && <TrashButton p={p.slug} s={s.id} title={s.title} open={on} />}
     </div>
