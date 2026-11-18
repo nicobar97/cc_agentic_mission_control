@@ -11,7 +11,7 @@
     "start": "npm run build && PYTHONDONTWRITEBYTECODE=1 python3 -B server/server.py --static dist",
     "serve": "PYTHONDONTWRITEBYTECODE=1 python3 -B server/server.py --static dist",
     "app": "npm run build && electron .",
-    "bundle": "npm run build && electron-packager . \"Mission Control\" --platform=darwin --arch=$(uname -m | sed s/x86_64/x64/) --out=release --overwrite --prune=false --asar=false --icon=build/icon.icns --ignore='^/(build|src|scripts|screenshots|release|node_modules|\\.scratch|\\.git|run\\.log|server\\.pid|index\\.html|vite\\.config\\.ts|tsconfig\\.json|README\\.md|CLAUDE\\.local\\.md)'"
+    "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
     "marked": "^14.1.4",

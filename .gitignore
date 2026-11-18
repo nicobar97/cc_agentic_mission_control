@@ -1,6 +1,7 @@
 node_modules/
 dist/
 release/
+build/python-*/
 run.log
 *.pid
 __pycache__/

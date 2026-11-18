@@ -1,6 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- same mark as the favicon in index.html, scaled into the macOS icon grid (824 px square, 100 px margin) -->
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="#ff8a3d"/>
-  <circle cx="512" cy="512" r="110" fill="#17171a"/>
-  <ellipse cx="512" cy="512" rx="292" ry="130" transform="rotate(-28 512 512)" fill="none" stroke="#17171a" stroke-width="55"/>
+  <!-- macOS icon grid: 824 px squircle with a 100 px margin. Dark tile, bold orange orbit, bright satellite: reads at 16 px. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34343c"/><stop offset="1" stop-color="#16161a"/></linearGradient>
+    <linearGradient id="or" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb870"/><stop offset="1" stop-color="#ff7a1f"/></linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ff8a3d" stop-opacity=".45"/><stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
+  <rect x="103" y="103" width="818" height="818" rx="182" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="6"/>
+  <circle cx="512" cy="512" r="330" fill="url(#glow)"/>
+  <g transform="translate(512 512) rotate(-28)">
+    <ellipse rx="310" ry="140" fill="none" stroke="url(#or)" stroke-width="64"/>
+    <circle cx="254" cy="-80" r="58" fill="#ffe6cc"/>
+  </g>
+  <circle cx="512" cy="512" r="124" fill="url(#or)"/>
+  <circle cx="512" cy="512" r="124" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="6"/>
 </svg>

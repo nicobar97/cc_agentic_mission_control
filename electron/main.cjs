@@ -36,7 +36,9 @@ async function start() {
   if (!fs.existsSync(path.join(ROOT, "dist", "index.html"))) throw new Error("dist/ is missing. Run `npm run build` first.");
   fixEnv();
   const port = await freePort();
-  server = spawn("python3", ["-B", path.join(ROOT, "server", "server.py"), "--static", path.join(ROOT, "dist"), "--port", String(port)],
+  // the packaged app carries its own Python (Resources/python); from source it falls back to the system python3
+  const bundled = path.join(process.resourcesPath || "", "python", "bin", "python3");
+  server = spawn(fs.existsSync(bundled) ? bundled : "python3", ["-B", path.join(ROOT, "server", "server.py"), "--static", path.join(ROOT, "dist"), "--port", String(port)],
     { cwd: ROOT, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" }, stdio: "inherit" });
   server.on("exit", (code) => { if (!app.isQuitting && code) dialog.showErrorBox("Mission Control", `The server stopped (exit ${code}).`); });
   await waitUp(port);
