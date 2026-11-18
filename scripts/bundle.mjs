@@ -60,6 +60,10 @@ for (const arch of archs) {
   run("npx", ["electron-packager", ".", "Mission Control", "--platform=darwin", `--arch=${arch}`, "--out=release", "--overwrite",
     "--prune=false", "--asar=false", "--icon=build/icon.icns", `--extra-resource=${path.join(dir, "python")}`, `--ignore=${IGNORE}`]);
   const app = path.join("release", `Mission Control-darwin-${arch}`, "Mission Control.app");
+  // The packager's signature doesn't seal the files we add (Python, app code), so a quarantined copy reads as "damaged".
+  // An ad-hoc signature over the whole bundle makes it valid: macOS then offers "Open Anyway" instead. (No Apple account needed.)
+  run("codesign", ["--force", "--deep", "--sign", "-", app]);
+  run("codesign", ["--verify", "--deep", "--strict", app]);
   const zip = path.join("release", `Mission-Control-${arch}.zip`);
   fs.rmSync(path.join(ROOT, zip), { force: true });
   run("ditto", ["-c", "-k", "--keepParent", app, zip]);   // ditto keeps the symlinks and attributes a .app needs; plain zip breaks it
