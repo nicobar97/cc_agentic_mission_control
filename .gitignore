@@ -1,5 +1,6 @@
 node_modules/
 dist/
+release/
 run.log
 *.pid
 __pycache__/
