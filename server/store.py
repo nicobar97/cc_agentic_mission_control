@@ -364,6 +364,23 @@ class Session:
         out.sort(key=lambda d: d["summary"]["start"] or "", reverse=True)
         return out
 
+    def main_run(self, now=None):
+        """The main conversation as one mission of its own (its tool calls, writes and edits). Shown in Mission Control
+        only: runs() stays agents-only, so cost totals never count the main chat twice."""
+        i = self.info.agent.info()
+        if not i["events"]:
+            return None
+        now = now or dt.datetime.now().astimezone()
+        idle = (now - i["last"]).total_seconds() if i["last"] else 0
+        cwd = self.info.first_cwd or self.info.cwd
+        meta = {"description": "Main chat", "finished": idle > 120}
+        d = tp.collect("main", None, [("main", meta, self.info.agent)], title=self.info.title(), icon="💬",
+                       past=True, work=cwd, now=now)
+        d["run"] = d["summary"]["id"] = "main"
+        d["main"] = d["summary"]["main"] = True
+        d["src"] = {"wf": None}
+        return d
+
 
 def safe_listdir(p):
     try:

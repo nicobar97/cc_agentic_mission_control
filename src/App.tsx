@@ -102,10 +102,10 @@ function SessionView({ route, idx }: { route: Route; idx: Index | null }) {
           {a && <><span className="sep">›</span><span className="cur ttl" title={ag?.label || a}><Bot /><span>{ag?.label || a}</span></span></>}
         </div>
         <div className="tabs"><div className="seg">
-          <button className={tab === "chat" && !a ? "on" : ""} onClick={() => go({ p, s })} title="Conversation" aria-label="Conversation"><ChatIcon /><span className="tlab">Conversation</span></button>
+          <button className={tab === "chat" && !a ? "on" : ""} onClick={() => go({ p, s })} title="Main chat" aria-label="Main chat"><ChatIcon /><span className="tlab">Main chat</span></button>
           <AgentsMenu p={p} s={s} a={a} label={ag?.label} count={nAgents} />
           <button className={tab === "mc" ? "on" : ""} onClick={() => go({ p, s, tab: "mc" })} title="Mission Control" aria-label="Mission Control"><Logo size={14} /><span className="tlab">Mission Control</span>
-            <span className="n" title="subagents and workflow agents">{nAgents}</span>{row?.running ? <span className="n run" title="running">{row.running}</span> : null}</button>
+            <span className="n" title="missions: the main chat plus its subagents and workflows">{nAgents + 1}</span>{row?.running ? <span className="n run" title="running">{row.running}</span> : null}</button>
         </div></div>
       </div>
       {tab === "mc" ? <div className="scroll"><MissionControl p={p} s={s} run={route.run} onMeta={onMeta} chatCost={row?.cost_main} /></div>
@@ -133,7 +133,7 @@ function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: strin
   const members = new Map<string, { id: string; label: string }[]>();
   agents.forEach((x) => { if (x.wf) members.set(x.wf, [...(members.get(x.wf) || []), { id: x.id, label: x.label }]); });
   const seen = new Set<string>();
-  const tasks: Task[] = (resp?.history || []).map((r) => {
+  const tasks: Task[] = (resp?.history || []).filter((r) => !r.main).map((r) => {
     const wf = r.id.startsWith("wf_") ? r.id : null, agentId = wf ? null : r.id.replace(/^agent-/, "");
     seen.add(wf || agentId!);
     return { id: r.id, wf, agentId, title: wf ? r.title : head?.agents[agentId!]?.label || r.title, icon: r.icon, status: r.status,
@@ -153,14 +153,15 @@ function AgentsMenu({ p, s, a, label, count }: { p: string; s: string; a?: strin
     t.tokens ? `${fmtTok(t.tokens)} tok` : null].filter(Boolean).join(" · ");
   const side = (t: Task) => <span className="rs"><span className={"badge " + (t.status === "running" ? "running" : t.status)}>{t.status}</span>
     {t.cost ? <small>{fmtUsd(t.cost)}</small> : null}</span>;
-  if (!count && !a) return <button disabled title="This chat started no subagent or workflow" aria-label="Missions"><Bot size={14} /><span className="tlab">Missions</span><span className="n">0</span></button>;
   return <span className="agmenu">
     <button className={a ? "on" : ""} aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
       title={a ? `${label || a} · this chat's missions` : "This chat's missions: a workflow with its agents, or a single agent"} aria-label={a ? `Mission: ${label || a}` : "Missions"}>
-      <Bot size={14} /><span className="tlab">{a ? (label || a) : "Missions"}</span><span className="n">{count}</span><ChevronIcon size={12} className="dd" /></button>
+      <Bot size={14} /><span className="tlab">{a ? (label || a) : "Missions"}</span><span className="n">{count + 1}</span><ChevronIcon size={12} className="dd" /></button>
     {open && <div className="runs open agm" role="menu" onClick={(e) => e.stopPropagation()}>
-      <div className="rh"><span>Missions</span><span>{resp ? `${tasks.length} missions · ${nAgents} agents · ${fmtUsd(total)}` : "…"}</span></div>
+      <div className="rh"><span>Missions</span><span>{resp ? `${tasks.length + 1} missions · ${nAgents} agents · ${fmtUsd(total)}` : "…"}</span></div>
       {!resp && <div className="skel skel-line" style={{ margin: 10 }} />}
+      <a role="menuitem" className="run" href={href({ p, s, tab: "mc", run: "main" })} onClick={close} title="The main conversation, open in Mission Control">
+        <span className="ri">💬</span><span style={{ minWidth: 0 }}><b>Main chat</b><small>this conversation's own work</small></span></a>
       {visible.map((t) => t.wf ? <div key={t.id} className="agm-task">
         <div className={"run task" + (t.members.some((m) => m.id === a) ? " sel" : "")}>
           <button className="chev" aria-expanded={!!exp[t.id]} aria-label={(exp[t.id] ? "Hide" : "Show") + " this task's agents"}

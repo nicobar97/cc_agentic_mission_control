@@ -16,7 +16,7 @@ export type FeedEv = Ev & { agent: string; id: string };
 export type FileRow = { name: string; path: string; mtime: string | null; writes: number; edits: number; lines: number | null;
   heads: string[]; sev: { blocker: number; major: number; minor: number } | null; oq: string[] };
 export type RunSummary = { id: string; title: string; icon: string; status: string; agents: number; start: string | null;
-  end: string | null; tokens: number; cost: number };
+  end: string | null; tokens: number; cost: number; main?: boolean };
 export type RunData = { run: string; work: string; finished: boolean; feature: string; task: string; icon: string;
   generated_at: string; phases: Phase[]; agents: Agent[]; feed: FeedEv[]; files: FileRow[]; summary: RunSummary;
   workflow: boolean; src: { wf: string | null } };
@@ -38,7 +38,7 @@ export type Head = { project: string; session: string; title: string; cwd: strin
   elsewhere?: Record<string, { a: string; p: string; s: string; wf: string | null; label: string }>; agents: Record<string, { wf: string | null; label: string }>;
   workflows: string[] };
 export type Page = { entries: Entry[]; start: number; total: number; epoch: number; head: Head | null };
-export type McResp = { history: RunSummary[]; live: string | null; data: RunData | null; head: Head };
+export type McResp = { main?: Agent | null; history: RunSummary[]; live: string | null; data: RunData | null; head: Head };
 
 // ---------- tracker.py format helpers (same names and output) ----------
 export const t = (iso?: string | null) => (iso ? new Date(iso) : null);

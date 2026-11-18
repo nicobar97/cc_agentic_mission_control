@@ -69,7 +69,7 @@ export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
   const H = resp.history, liveId = resp.live, isPast = !!d && d.run !== liveId;
   const select = (id: string | null) => { setMenu(false); go({ p, s, tab: "mc", run: id && id !== liveId ? id : undefined }, true); };
   const matches = (a: Agent) => matchAgent(a, filter, q, phase);
-  const openChat = (id: string) => go({ p, s, a: id });
+  const openChat = (id: string) => go(id === "main" ? { p, s } : { p, s, a: id });   // "main" = the conversation itself
 
   return (
     <div className="wrap mcwrap" ref={wrapRef}>
@@ -110,7 +110,8 @@ export function MissionControl({ p, s, run, onMeta, chatCost }: Props) {
           <span className="li"><b>Activity bars</b> = last 36 actions, oldest left</span>{Object.entries(KIND).map(([k, [l, c]]) => <span key={k} className="li"><span className="sw" style={{ background: k === "tool" ? "var(--bg2)" : c, border: k === "tool" ? "1px solid var(--bd)" : undefined }} />{k === "tool" ? "other tool" : l}</span>)}
           <span className="li">Click a card to open the agent's chat · click a bar or the list button for its timeline</span></Info></span>
           <span>{`${d.agents.filter(matches).length} of ${d.agents.length}`}</span></h2>
-        <Grid d={d} list={d.agents.filter(matches)} isPast={isPast} onOpen={(id, n) => setOpen({ id, n })} onChat={openChat} />
+        <Grid d={d} list={d.agents.filter(matches)} isPast={isPast} onOpen={(id, n) => id === "main" ? select("main") : setOpen({ id, n })} onChat={openChat}
+          main={d.run !== "main" && resp.main && matches(resp.main) ? resp.main : null} />
         <h2 style={{ marginTop: 22 }}><span>Deliverables<Info label="Legend: deliverables"><span className="li">Files the run's agents wrote or edited, newest first (taken from their Write / Edit calls)</span><span className="li"><span className="ln" style={{ background: "var(--ok)" }} /><b>green edge</b> written in the last 5 min</span><span className="li"><b>mentions</b> on review files = times "blocker / major / minor" appear (a rough hint)</span><span className="li">Hover a file for its sections · click it for a git-style diff of every change</span></Info></span><span>{d.files.length} files</span></h2>
         <Files d={d} onOpen={(path) => openDiff({ p, s, path, run: d.run })} />
       </div>
@@ -135,16 +136,16 @@ export function matchAgent(a: Agent, filter: string, q: string, phase?: string |
 
 function RunsMenu({ open, hist, cur, liveId, onPick }: { open: boolean; hist: RunSummary[]; cur: string; liveId: string | null; onPick: (id: string) => void }) {
   const now = useNow();
-  const cost = hist.reduce((s, r) => s + (r.cost || 0), 0), tok = hist.reduce((s, r) => s + (r.tokens || 0), 0);
+  const ag = hist.filter((r) => !r.main), cost = ag.reduce((s, r) => s + (r.cost || 0), 0), tok = ag.reduce((s, r) => s + (r.tokens || 0), 0);
   return (
     <div className={"runs" + (open ? " open" : "")} onClick={(e) => e.stopPropagation()}>
-      <div className="rh"><span>Missions · newest first</span><span>{hist.length} mission{hist.length === 1 ? "" : "s"} · {fmtTok(tok)} tok · {fmtUsd(cost)}</span></div>
+      <div className="rh"><span>Missions · newest first · the main chat is the last</span><span>{hist.length} mission{hist.length === 1 ? "" : "s"} · {fmtTok(tok)} tok · {fmtUsd(cost)}</span></div>
       {hist.length ? hist.map((r) => {
         const st = r.status !== "running" ? r.status : r.id === liveId ? "live" : r.end && now - +t(r.end)! > 1800e3 ? "stale" : "running";
         const cls = ({ live: "running", stale: "quiet", running: "running" } as any)[st] || st;
         return <div key={r.id} className={"run" + (r.id === cur ? " sel" : "")} title={r.title} onClick={() => onPick(r.id)}>
           <span className="ri"><RunIcon icon={r.icon} size={16} /></span>
-          <span style={{ minWidth: 0 }}><b>{r.title}</b><small>{fmtDate(r.start)} · {r.agents} agent{r.agents === 1 ? "" : "s"} · {fmtTok(r.tokens)} tok</small></span>
+          <span style={{ minWidth: 0 }}><b>{r.title}</b><small>{fmtDate(r.start)} · {r.main ? "main chat" : `${r.agents} agent${r.agents === 1 ? "" : "s"}`} · {fmtTok(r.tokens)} tok</small></span>
           <span className="rs"><span className={"badge " + cls}>{st}</span><small>{fmtUsd(r.cost)}</small></span></div>;
       }) : <div className="empty">No mission recorded yet.</div>}
     </div>
@@ -187,11 +188,11 @@ function Hero({ d, hist, isPast, chatCost }: { d: RunData; hist: RunSummary[]; i
       <Stat k="Wall clock" hint="from the first agent start to now / the end">
         {firsts.length ? <WallClock from={Math.min(...firsts)} to={Math.max(...lasts)} live={!d.finished && !isPast} /> : "0m00s"}</Stat>
       {(() => {
-        const runsCost = hist.reduce((n, r) => n + (r.cost || 0), 0), runsTok = hist.reduce((n, r) => n + (r.tokens || 0), 0);
-        const nAg = hist.reduce((n, r) => n + (r.agents || 0), 0);
+        const ah = hist.filter((r) => !r.main), runsCost = ah.reduce((n, r) => n + (r.cost || 0), 0), runsTok = ah.reduce((n, r) => n + (r.tokens || 0), 0);
+        const nAg = ah.reduce((n, r) => n + (r.agents || 0), 0);
         return <>
-          {hist.length > 1 && <Stat k="Missions · agents" hint={`Every mission of this chat: ${hist.length} missions, ${nAg} agents, ${fmtTok(runsTok)} tokens (input, output, cache). The main conversation is counted separately in "This chat". Open the missions menu to switch mission.`}>
-            {fmtUsd(runsCost)}<span className="sub"> · {hist.length} missions</span></Stat>}
+          {ah.length > 1 && <Stat k="Missions · agents" hint={`Every agent mission of this chat: ${ah.length} missions, ${nAg} agents, ${fmtTok(runsTok)} tokens (input, output, cache). The main conversation is counted separately in "This chat". Open the missions menu to switch mission.`}>
+            {fmtUsd(runsCost)}<span className="sub"> · {ah.length} missions</span></Stat>}
           {chatCost != null && <Stat k="This chat" hint="The main conversation itself, without its agents: every message of the chat transcript, deduped per message id and priced per model at list API prices">{fmtUsd(chatCost)}</Stat>}
           {chatCost != null && <Stat k="Chat total" hint={`This chat ${fmtUsd(chatCost)} + its agents ${fmtUsd(runsCost)}. The same figure as the chat's row in the sidebar.`}>{fmtUsd(chatCost + runsCost)}</Stat>}
         </>;
@@ -252,11 +253,12 @@ export const Card = memo(function Card({ a, isPast, idx, first, onOpen, onChat, 
   );
 }, (x, y) => x.isPast === y.isPast && x.ctxLine === y.ctxLine && x.lastLine === y.lastLine && JSON.stringify(x.a) === JSON.stringify(y.a));
 
-function Grid({ d, list, isPast, onOpen, onChat }: { d: RunData; list: Agent[]; isPast: boolean; onOpen: (id: string, n: number | null) => void; onChat: (id: string) => void }) {
+function Grid({ d, list, isPast, onOpen, onChat, main }: { d: RunData; list: Agent[]; isPast: boolean; main?: Agent | null; onOpen: (id: string, n: number | null) => void; onChat: (id: string) => void }) {
   const firstPaint = useRef(true);
   useEffect(() => { firstPaint.current = false; });
-  if (!list.length) return <div className="grid"><div className="empty">No agents match the current filter.</div></div>;
+  if (!list.length && !main) return <div className="grid"><div className="empty">No agents match the current filter.</div></div>;
   return <div className="grid" onMouseLeave={() => setTipGlobal(null)}>
+    {main && <Card key="main-chat" a={main} isPast={false} idx={0} first={false} onOpen={onOpen} onChat={onChat} lastLine={main.last_ev} ctxLine="Main chat · this conversation (click the list button to open its mission)" />}
     {list.map((a, i) => <Card key={d.run + a.id} a={a} isPast={isPast} idx={i} first={firstPaint.current} onOpen={onOpen} onChat={onChat} />)}
     <Tip />
   </div>;

@@ -289,12 +289,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def mc(self, sess, q):
         with STORE.lock:
-            runs = STORE.session_runs(sess)
+            runs = list(STORE.session_runs(sess))
+            main = sess.main_run()
+        if main:
+            runs.append(main)   # the main chat is a mission too; with no agents spawned it is the only one
         hist = [r["summary"] for r in runs]
         live = next((r["run"] for r in runs if r["summary"]["status"] == "running"), runs[0]["run"] if runs else None)
         want = q.get("run") or live
         data = next((r for r in runs if r["run"] == want), None)
-        return self.send_json({"history": hist, "live": live, "data": data, "head": self.session_head(sess, None)})
+        return self.send_json({"history": hist, "live": live, "data": data, "main": main["agents"][0] if main else None, "head": self.session_head(sess, None)})
 
     def agent_resolve(self, sess, q):
         """One agent's chat location, by tool call (tool=) or by agent id (agent=): the same resolver as the links."""
@@ -318,7 +321,9 @@ class Handler(BaseHTTPRequestHandler):
         target = os.path.abspath(os.path.join(cwd, path) if cwd and not os.path.isabs(path) else path)
         with STORE.lock:
             agents = list(sess.agents.values())
-            if q.get("run"):
+            if q.get("run") == "main":
+                files = [(sess.path, None, "main chat")]
+            elif q.get("run"):
                 run = next((r for r in STORE.session_runs(sess) if r["run"] == q["run"]), None)
                 if not run:
                     return self.send_json({"error": "unknown run"}, 404)
