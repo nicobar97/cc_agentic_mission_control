@@ -90,6 +90,40 @@ export function Composer({ p, s }: { p: string; s: string }) {
   const [msg, setMsg] = useState("");
   const [forceFork, setForceFork] = useState(false);
   const [sending, setSending] = useState(false);
+  // up/down on the composer walks through the messages already sent from this chat (like a shell history)
+  const hist = useRef<string[]>([]);
+  const hpos = useRef(-1);          // -1 = editing the live draft
+  const draft = useRef("");
+  const lastSent = useRef("");
+  useEffect(() => {
+    hpos.current = -1;
+    try { hist.current = JSON.parse(localStorage.getItem("mc-hist-" + s) || "[]"); } catch { hist.current = []; }
+  }, [s]);
+  const remember = (t: string) => {
+    hist.current = [...hist.current.filter((x) => x !== t), t].slice(-50);
+    hpos.current = -1;
+    try { localStorage.setItem("mc-hist-" + s, JSON.stringify(hist.current)); } catch { /* ignore */ }
+  };
+  const walk = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget, h = hist.current;
+    if (e.shiftKey || e.altKey || e.metaKey || e.ctrlKey || e.nativeEvent.isComposing) return;
+    const up = e.key === "ArrowUp", down = e.key === "ArrowDown";
+    if (!up && !down) return;
+    // only when the caret is on the first (up) / last (down) line, so multi-line editing still works
+    const before = el.value.slice(0, el.selectionStart), after = el.value.slice(el.selectionEnd);
+    if ((up && before.includes("\n")) || (down && after.includes("\n"))) return;
+    if (up) {
+      if (!h.length || hpos.current === 0) return;
+      if (hpos.current === -1) { draft.current = el.value; hpos.current = h.length - 1; } else hpos.current--;
+    } else {
+      if (hpos.current === -1) return;
+      hpos.current = hpos.current >= h.length - 1 ? -1 : hpos.current + 1;
+    }
+    e.preventDefault();
+    const v = hpos.current === -1 ? draft.current : h[hpos.current];
+    setText(v);
+    requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = v.length; });
+  };
   const myRuns = runs.filter((r) => r.target === s || r.session_id === s);
   const busy = myRuns.some((r) => !r.fork && (r.status === "running" || r.status === "starting"));
   const fork = !!o?.session?.live_elsewhere || forceFork;
@@ -98,13 +132,24 @@ export function Composer({ p, s }: { p: string; s: string }) {
   useEffect(() => {
     for (const r of myRuns) if (r.fork && r.session_id && r.appeared && !opened.current.has(r.id)) { opened.current.add(r.id); go({ p: r.project, s: r.session_id }); }
   }, [myRuns]);
+  // a chat that runs as a background session can't be resumed in place: retry as a fork, keeping the message
+  const lastRun = myRuns.filter((r) => !r.fork).slice(-1)[0];
+  const bgSeen = useRef(new Set<string>());
+  useEffect(() => {
+    if (!lastRun || lastRun.status !== "error" || bgSeen.current.has(lastRun.id)) return;
+    const all = (lastRun.error || "") + lastRun.events.map((e) => e.text).join("\n");
+    if (/running in the background/i.test(all)) {
+      bgSeen.current.add(lastRun.id); setForceFork(true); if (!text) setText(lastSent.current);
+      setMsg("This chat is running as a background session, so it can't be resumed in place. Send again to fork it into a new chat.");
+    }
+  }, [lastRun?.id, lastRun?.status]);
   if (!on) return null;
   const send = async () => {
     if (!text.trim() || sending || busy) return;
-    setSending(true); setMsg("");
+    setSending(true); setMsg(""); lastSent.current = text;
     const r = await writeApi<RunSnap>("send", { p, s, prompt: text, model, mode, fork });
     setSending(false);
-    if (r.ok) { noteRun(r.data); setText(""); }
+    if (r.ok) { noteRun(r.data); remember(text); setText(""); }
     else { setMsg(r.data.error || `refused (${r.status})`); if (r.data.fork_offered) setForceFork(true); }
   };
   const last = myRuns.filter((r) => !r.fork || !r.appeared).slice(-1)[0];
@@ -115,8 +160,8 @@ export function Composer({ p, s }: { p: string; s: string }) {
       {msg && <div className="cnote err">{msg}</div>}
       <div className="cbox">
         <textarea rows={2} placeholder={busy ? "Claude is still answering in this chat…" : fork ? "Message for the fork…  (Enter to send, Shift+Enter for a new line)" : "Message Claude…  (Enter to send, Shift+Enter for a new line)"}
-          value={text} onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+          value={text} onChange={(e) => { setText(e.target.value); hpos.current = -1; }}
+          onKeyDown={(e) => { walk(e); if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
         <div className="crow">
           <Selectors o={o} model={model} setModel={setModel} mode={mode} setMode={setMode} />
           <span className="ts" title={o?.session?.cwd}><Folder /> {(o?.session?.cwd || "").replace(o?.home || "~", "~")}</span>
