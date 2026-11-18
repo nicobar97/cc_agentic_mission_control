@@ -2,10 +2,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtUsd, href, Index, Project, QS, SessionRow, STATIC, useWriteMode, when } from "../lib";
 import { Bot, ChevronIcon, Info, Logo, StarIcon } from "./bits";
 import { NewChat } from "./Write";
-import { TrashButton, TrashSection } from "./Trash";
 
 const SHOW = 6;
 const STAR_KEY = "mc.starredProjects";   // browser-only: an ordered list of project slugs (no server write)
+const HIDE_KEY = "mc.hiddenChats";
+const readHidden = (): string[] => { try { const v = JSON.parse(localStorage.getItem(HIDE_KEY) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
+/** Chats hidden from the list: browser localStorage only. Nothing on disk is touched. */
+function useHidden() {
+  const [hidden, setHidden] = useState<string[]>(readHidden);
+  const save = (next: string[]) => { setHidden(next); try { localStorage.setItem(HIDE_KEY, JSON.stringify(next)); } catch (_) { /* blocked storage: lasts for this page only */ } };
+  return { hidden, hide: (id: string) => save([...hidden.filter((x) => x !== id), id]), unhide: (id: string) => save(hidden.filter((x) => x !== id)) };
+}
 const readStars = (): string[] => { if (STATIC && QS.get("stars")) return QS.get("stars")!.split(",").filter(Boolean); try { const v = JSON.parse(localStorage.getItem(STAR_KEY) || "[]"); return Array.isArray(v) ? v.filter((x) => typeof x === "string") : []; } catch { return []; } };
 function useStars() {
   const [stars, setStars] = useState<string[]>(readStars);
@@ -22,6 +29,8 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
   const [all, setAll] = useState<Record<string, boolean>>({});
   const ref = useRef<HTMLInputElement>(null);
   const { stars, toggle, move } = useStars();
+  const { hidden, hide, unhide } = useHidden();
+  const [showHidden, setShowHidden] = useState(false);
   const drag = useRef<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   useEffect(() => {
@@ -31,7 +40,7 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
 
   const { active, projects, starred, n } = useMemo(() => {
     const ql = q.trim().toLowerCase();
-    const hit = (p: Project, s: SessionRow) => !ql || [s.title, s.prompt, p.path, s.branch, s.id, s.cwd].some((x) => String(x || "").toLowerCase().includes(ql));
+    const hit = (p: Project, s: SessionRow) => (showHidden || !hidden.includes(s.id)) && (!ql || [s.title, s.prompt, p.path, s.branch, s.id, s.cwd].some((x) => String(x || "").toLowerCase().includes(ql)));
     const active: [Project, SessionRow][] = [];
     const projects: [Project, SessionRow[]][] = [];
     let n = 0;
@@ -53,7 +62,7 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
     }
     active.sort((a, b) => b[1].mtime - a[1].mtime);
     return { active, projects, starred, n };
-  }, [idx, q, stars]);
+  }, [idx, q, stars, hidden, showHidden]);
 
   const group = (p: Project, rows: SessionRow[], isStar: boolean) => {
     const isClosed = closed[p.slug] ?? false, show = all[p.slug] || q ? rows : rows.slice(0, SHOW);
@@ -74,7 +83,7 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
         <button className={"star" + (isStar ? " on" : "")} aria-pressed={isStar} aria-label={isStar ? `Unstar ${p.path}` : `Star ${p.path} to pin it on top`}
           title={isStar ? "Unstar" : "Star to pin on top"} onClick={() => toggle(p.slug)}><StarIcon on={isStar} /></button>
       </div>
-      {!isClosed && <>{show.map((s) => <Row key={s.id} p={p} s={s} sel={sel} />)}
+      {!isClosed && <>{show.map((s) => <Row key={s.id} p={p} s={s} sel={sel} hid={hidden.includes(s.id)} onHide={() => (hidden.includes(s.id) ? unhide : hide)(s.id)} />)}
         {isStar && !rows.length && <div className="proj-empty">{q ? "No match in this project" : "Its chats are all in Active now"}</div>}
         {rows.length > show.length && <button className="more" onClick={() => setAll((a) => ({ ...a, [p.slug]: true }))}>Show {rows.length - show.length} more</button>}</>}
     </div>;
@@ -94,7 +103,7 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
         {active.length > 0 && <>
           <div className="sec-h"><span className="eyebrow">Active now</span><span className="sec-r"><span className="cnt">{active.length}</span>
             <Info right label="Legend: active"><span className="li"><span className="pulse" /> a file of this chat (or of one of its agents) changed in the last 5 min</span><span className="li"><span className="pulse busy" /> agents are running</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span></Info></span></div>
-          {active.map(([p, s]) => <Row key={p.slug + s.id} p={p} s={s} sel={sel} showProject />)}
+          {active.map(([p, s]) => <Row key={p.slug + s.id} p={p} s={s} sel={sel} showProject hid={hidden.includes(s.id)} onHide={() => (hidden.includes(s.id) ? unhide : hide)(s.id)} />)}
         </>}
         {starred.length > 0 && <>
           <div className="sec-h"><span>Starred</span><span className="sec-r"><span className="cnt">{starred.length}</span>
@@ -102,9 +111,9 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
           {starred.map(([p, rows]) => group(p, rows, true))}
         </>}
         <div className="sec-h"><span>Projects</span><span className="sec-r">
-          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><StarIcon /> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span><span className="li">In write mode, the trash icon on a row (shown on hover) moves that chat to the macOS Trash, after a confirmation</span></Info></span></div>
+          <Info right label="Legend: rows"><span className="li"><b>Row</b> title (the chat's summary, or its first prompt)</span><span className="li">time of the last change · messages · <Bot /> subagents · cost of the chat and its agents (list API prices)</span><span className="li">Newest first. <kbd>⌘K</kbd> searches titles, prompts, paths and branches</span><span className="li"><StarIcon /> on a project (shown on hover) stars it to pin it on top</span><span className="li"><span className="badge stopped">stopped</span> = the last turn was interrupted</span><span className="li">✕ on a row (shown on hover) hides that chat from the list; nothing is deleted. "Show hidden chats" at the bottom brings them back</span></Info></span></div>
         {projects.map(([p, rows]) => group(p, rows, false))}
-        <TrashSection />
+        {hidden.length > 0 && <button className="agm-more" onClick={() => setShowHidden((v) => !v)}>{showHidden ? "Hide hidden chats" : `Show hidden chats (${hidden.length})`}</button>}
       </div>
     </nav>
   );
@@ -112,18 +121,19 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
 
 const HOVER = STATIC ? QS.get("hover") : null;   // screenshots only: show one row's hover state
 
-function Row({ p, s, sel, showProject }: { p: Project; s: SessionRow; sel?: { p?: string; s?: string }; showProject?: boolean }) {
+function Row({ p, s, sel, showProject, hid, onHide }: { p: Project; s: SessionRow; sel?: { p?: string; s?: string }; showProject?: boolean; hid?: boolean; onHide?: () => void }) {
   const on = sel?.p === p.slug && sel?.s === s.id;
   const write = useWriteMode();
   return (
-    <div className={"chatrow" + (write ? " w" : "") + (HOVER === s.id ? " hov" : "")}>
+    <div className={"chatrow w" + (HOVER === s.id ? " hov" : "")}>
     <a className={"chat" + (on ? " sel" : "") + (s.active ? " act" : "")} href={href({ p: p.slug, s: s.id })} aria-current={on ? "page" : undefined} title={`${s.title}\n${s.prompt}\n${s.cwd}${s.branch ? " · " + s.branch : ""}`}>
       {s.active && <span className={"pulse" + (s.running ? " busy" : "")} />}
       <b>{s.title}</b><span className="cost">{fmtUsd(s.cost)}</span>
       <small>{showProject && <span className="pj">{p.path.split("/").pop()} · </span>}{when(s.mtime)} · {s.msgs} msg{s.msgs === 1 ? "" : "s"}{s.agents ? <> · <Bot /> {s.agents}</> : null}{s.running ? ` · ${s.running} running` : ""}</small>
       <span className="rt">{s.status === "stopped" && <span className="badge stopped" title="the last turn was interrupted">stopped</span>}</span>
     </a>
-    {write && <TrashButton p={p.slug} s={s.id} title={s.title} open={on} />}
+    <button className="trashbtn" title={hid ? "Show this chat again" : "Hide this chat from the list (nothing is deleted)"}
+      aria-label={hid ? "Unhide chat" : "Hide chat"} onClick={(e) => { e.preventDefault(); onHide?.(); }}>{hid ? "↺" : "✕"}</button>
     </div>
   );
 }

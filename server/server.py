@@ -4,7 +4,7 @@
   python3 -B server/server.py [--port 8765] [--static dist] [--interval 1.5]
 
 Reads are GET/HEAD; writes are POST /api/write/* behind the per-launch token and an Origin check (write mode: send
-messages through the claude CLI, and move a chat to the macOS Trash and back, see trash.py).
+messages through the claude CLI).
 No CORS headers (same-origin only), and Host is checked against localhost to block DNS rebinding.
 A poll thread stats the files every --interval seconds, parses only the appended lines, and pushes a
 "change" Server-Sent Event naming the sessions that changed.
@@ -28,7 +28,6 @@ import store as st  # noqa: E402
 import transcript as tr  # noqa: E402
 import runner as rn  # noqa: E402
 import diffs as df  # noqa: E402
-import trash as tb  # noqa: E402
 
 STORE = st.Store()
 TRANSCRIPTS = tr.TranscriptCache()
@@ -48,7 +47,7 @@ RUNNER = rn.Runner(STORE, runs_changed)
 
 
 def publish(changed):
-    """Push a "change" SSE naming these (project, session) pairs (the watcher, and a move to or from the Trash)."""
+    """Push a "change" SSE naming these (project, session) pairs (the watcher)."""
     if changed:
         with HUB["cond"]:
             HUB["v"] += 1
@@ -57,7 +56,6 @@ def publish(changed):
             HUB["cond"].notify_all()
 
 
-TRASH = tb.Trash(STORE, RUNNER, TRANSCRIPTS, publish)
 
 
 def watch(interval):
@@ -151,14 +149,6 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(self.run_json(run.snap()))
         if op == "stop":
             return self.send_json(self.run_json(RUNNER.stop(str(b.get("run") or "")).snap()))
-        if op == "trash-info":   # the confirm dialog's facts and dry run: never moves anything
-            return self.send_json(TRASH.preview(b.get("p"), b.get("s")))
-        if op == "trash":
-            return self.send_json(TRASH.trash(b.get("p"), b.get("s")))
-        if op == "restore":
-            return self.send_json(TRASH.restore(b.get("p"), b.get("entry")))
-        if op == "trashed":
-            return self.send_json({"items": TRASH.listing()})
         if op == "runs":
             since = b.get("since") if isinstance(b.get("since"), dict) else {}
             now = time.time()
@@ -209,8 +199,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(self.agents_api(q))
             if u.path.startswith("/api/write/"):
                 return self.refuse("POST")
-            if u.path == "/api/trash-state":   # a tab still showing a chat that is gone: was it moved to the Trash?
-                return self.send_json(TRASH.state(q.get("p"), q.get("s")))
             if u.path in ("/api/transcript", "/api/full", "/api/mc", "/api/diff", "/api/agent-resolve", "/api/outline"):
                 with STORE.lock:
                     sess = STORE.get(q.get("p"), q.get("s"))

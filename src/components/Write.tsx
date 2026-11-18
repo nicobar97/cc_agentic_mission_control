@@ -21,7 +21,7 @@ export function WriteToggle() {
       <span className="li"><b>On</b> a composer appears under each chat and “＋ New chat” in the sidebar. Messages run the local <code>claude</code> CLI headless, in the chat's own folder; the reply lands in the transcript and shows here live</span>
       <span className="li">A chat that changed in the last 2 min and isn't being written by Mission Control (for example an open terminal session) is never written into: you can fork it into a new chat instead</span>
       <span className="li">One message per chat at a time, at most 3 runs at once</span>
-      <span className="li">The trash icon on a sidebar chat moves it to the macOS Trash (<code>~/.Trash/Mission Control/</code>), with Undo. Never deleted; open, active or running chats are refused</span>
+      
     </Info>
   </span>;
 }

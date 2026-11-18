@@ -7,7 +7,6 @@ import { MissionControl } from "./components/MissionControl";
 import { Composer, WriteToggle } from "./components/Write";
 import { DiffHost } from "./components/Diff";
 import { Home } from "./components/Home";
-import { TrashedNotice, TrashHost, useTrashed } from "./components/Trash";
 
 startLive();
 
@@ -48,7 +47,6 @@ export default function App() {
         {route.p && route.s ? <SessionView key={route.p + "/" + route.s} route={route} idx={idx} /> : <Home idx={idx} />}
       </main>
       <DiffHost />
-      <TrashHost />
     </div>
   );
 }
@@ -74,7 +72,7 @@ function TopBar({ idx }: { idx: Index | null }) {
         <div className="gstat"><div className="k">Running agents<Info label="running agents">subagents and workflow agents still running, by the tracker's rules: not finished, no hand-back, not stopped (stoppedByUser, killed, or its last turn interrupted), and not silent for 45 min</Info></div><div className="v">{g ? g.running_agents : "—"}</div></div>
       </div>
       <div className="tools"><WriteToggle /><LiveDot />
-        <Info right label="Legend: live"><span className="li"><span className="dot" style={{ animation: "none" }} /><b>live</b> pushed by the server as files change (Server-Sent Events)</span><span className="li"><span className="dot" style={{ animation: "none", background: "var(--idle)" }} /><b>offline</b> the server is not answering; it reconnects by itself</span><span className="li">Read-only unless write mode is on: then only the <code>claude</code> CLI it starts writes chats, and a chat you trash is moved to the macOS Trash (never deleted)</span><span className="li">Keys: <kbd>⌘K</kbd> chats · <kbd>/</kbd> search agents · <kbd>r</kbd> missions · <kbd>t</kbd> theme · <kbd>esc</kbd> close</span></Info>
+        <Info right label="Legend: live"><span className="li"><span className="dot" style={{ animation: "none" }} /><b>live</b> pushed by the server as files change (Server-Sent Events)</span><span className="li"><span className="dot" style={{ animation: "none", background: "var(--idle)" }} /><b>offline</b> the server is not answering; it reconnects by itself</span><span className="li">Read-only unless write mode is on: then only the <code>claude</code>Read-only: Mission Control never writes, moves or deletes anything under ~/.claude</span><span className="li">Keys: <kbd>⌘K</kbd> chats · <kbd>/</kbd> search agents · <kbd>r</kbd> missions · <kbd>t</kbd> theme · <kbd>esc</kbd> close</span></Info>
         <ThemeSwitch /></div>
     </div>
   );
@@ -92,7 +90,6 @@ function SessionView({ route, idx }: { route: Route; idx: Index | null }) {
   const nAgents = row ? row.agents : head ? Object.keys(head.agents).length : 0;
   const onMeta = useCallback((m: { runs: number; running: number }) => setMcMeta(m), []);
   const back = () => { if (a && route.from !== "home") go({ p, s, tab: "mc" }); else go({}); };
-  const trashed = useTrashed(p, s, idx ? !!row : null);   // this chat was moved to the Trash (from another tab, say)
   return (
     <>
       <div className="shead">
@@ -111,7 +108,7 @@ function SessionView({ route, idx }: { route: Route; idx: Index | null }) {
             <span className="n" title="subagents and workflow agents">{nAgents}</span>{row?.running ? <span className="n run" title="running">{row.running}</span> : null}</button>
         </div></div>
       </div>
-      {trashed ? <TrashedNotice p={p} entry={trashed.entry} /> : tab === "mc" ? <div className="scroll"><MissionControl p={p} s={s} run={route.run} onMeta={onMeta} chatCost={row?.cost_main} /></div>
+      {tab === "mc" ? <div className="scroll"><MissionControl p={p} s={s} run={route.run} onMeta={onMeta} chatCost={row?.cost_main} /></div>
         : <div className="convo-col"><Transcript key={a || "main"} p={p} s={s} a={a} onHead={setHead} />{!a && <Composer p={p} s={s} />}</div>}
     </>
   );
