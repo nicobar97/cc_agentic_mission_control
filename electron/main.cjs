@@ -1,6 +1,6 @@
 // Minimal Electron shell: starts the Python server on a free local port, opens it in a window, stops it on quit.
 // Needs python3 on the machine and a built `dist/` (npm run build). Nothing else is bundled.
-const { app, BrowserWindow, shell, dialog } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog } = require("electron");
 const { spawn, execFileSync } = require("child_process");
 const net = require("net");
 const path = require("path");
@@ -17,6 +17,34 @@ function fixEnv() {
   // the server picks the newest `claude` it finds (runner.py), no slow login-shell lookup needed; MC_CLAUDE_BIN overrides
 }
 
+const PROFILE = "https://github.com/nicobar97";
+const REPO = PROFILE + "/cc_agentic_mission_control";
+
+// version from package.json; the build number comes from electron/build-info.json, written by `npm run bundle`
+function buildInfo() {
+  let b = {};
+  try { b = JSON.parse(fs.readFileSync(path.join(__dirname, "build-info.json"), "utf8")); } catch (_) { /* running from source */ }
+  return { version: b.version || app.getVersion(), build: b.build || "dev" };
+}
+
+// Menu bar: the standard menus plus an "Info" menu (version, license, author's GitHub profile). Links open in the browser.
+function setMenu() {
+  const { version, build } = buildInfo();
+  const open = (url) => () => shell.openExternal(url);
+  app.setAboutPanelOptions({ applicationName: "Mission Control", applicationVersion: version, version: String(build),
+    copyright: "MIT License · © 2026 nicobar97", website: REPO });
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { role: "appMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
+    { label: "Info", submenu: [
+      { label: `Mission Control v${version} · build ${build}`, enabled: false },
+      { type: "separator" },
+      { label: "License: MIT", click: open(REPO + "/blob/main/LICENSE") },
+      { label: "GitHub profile: nicobar97", click: open(PROFILE) },
+      { label: "Source code", click: open(REPO) },
+    ] },
+  ]));
+}
+
 const freePort = () => new Promise((res, rej) => {
   const s = net.createServer().unref().on("error", rej).listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => res(port)); });
 });
@@ -31,6 +59,7 @@ const waitUp = (port) => new Promise((res, rej) => {
 async function start() {
   if (!fs.existsSync(path.join(ROOT, "dist", "index.html"))) throw new Error("dist/ is missing. Run `npm run build` first.");
   fixEnv();
+  setMenu();
   const port = await freePort();
   // the packaged app carries its own Python (Resources/python); from source it falls back to the system python3
   const bundled = path.join(process.resourcesPath || "", "python", "bin", "python3");

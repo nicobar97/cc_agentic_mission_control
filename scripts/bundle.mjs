@@ -54,6 +54,7 @@ run("npm", ["run", "build"]);
 // version = package.json (npm version patch|minor|major); build = git commit count, the same number the UI shows
 const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
 const BUILD_NO = execFileSync("git", ["rev-list", "--count", "HEAD"], { cwd: ROOT }).toString().trim();
+fs.writeFileSync(path.join(ROOT, "electron", "build-info.json"), JSON.stringify({ version: VERSION, build: BUILD_NO }));   // read by the Info menu
 const IGNORE = "^/(build|src|scripts|screenshots|release|node_modules|\\.scratch|\\.git|\\.DS_Store|run\\.log|server\\.pid|index\\.html|vite\\.config\\.ts|tsconfig\\.json|README\\.md|CLAUDE\\.local\\.md)";
 for (const arch of archs) {
   if (!TRIPLE[arch]) throw new Error(`unknown arch ${arch} (arm64 or x64)`);

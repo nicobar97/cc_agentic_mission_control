@@ -13,7 +13,7 @@ files. Everything runs on your machine: the server binds to `127.0.0.1`, and the
 ![React 18](https://img.shields.io/badge/react-18-61DAFB)
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
 ![Local only](https://img.shields.io/badge/network-local%20only-555555)
-![License: not yet chosen](https://img.shields.io/badge/license-not%20yet%20chosen-lightgrey)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 <!-- Screenshot placeholder: add one made from demo data only (start the server with MC_ROOT pointing at a scratch
      copy of synthetic transcripts). Never use real chats. -->
@@ -290,4 +290,4 @@ new colours. Anything that writes must go through `POST /api/write/*` and `serve
 
 ## License
 
-License: not yet chosen.
+[MIT](LICENSE) © 2026 nicobar97. The macOS app has an **Info** menu in the menu bar with the version, the license and a link to the author's GitHub profile.
