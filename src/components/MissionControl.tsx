@@ -285,7 +285,7 @@ function Files({ d, onOpen }: { d: RunData; onOpen: (path: string) => void }) {
     const what = [f.lines != null ? `${f.lines} lines` : null, f.writes ? `${f.writes} write${f.writes > 1 ? "s" : ""}` : null, f.edits ? `${f.edits} edit${f.edits > 1 ? "s" : ""}` : null, f.shell ? `${f.shell} via shell` : null].filter(Boolean).join(" · ");
     return <div key={f.path} className={"file" + (fresh ? " fresh" : "")} title={[f.path, ...f.heads].join(" · ")} role="button" tabIndex={0} aria-label={`Diff of ${f.name}`}
       onClick={() => onOpen(f.path)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(f.path); } }}>
-      <span className="n">📄 {f.name}</span><span className="m">{what}{f.sev ? <span title="Times the words blocker / major / minor appear in this review file (rough hint, not an exact issue count)"> · blocker {f.sev.blocker} · major {f.sev.major} · minor {f.sev.minor} mentions</span> : null} · {hhmmss(f.mtime)}</span></div>;
+      <span className="n"><span className="bn">📄 {f.name.slice(f.name.lastIndexOf("/") + 1)}</span>{f.name.includes("/") && <span className="dn"><bdi>{f.name.slice(0, f.name.lastIndexOf("/") + 1)}</bdi></span>}</span><span className="m">{what}{f.sev ? <span title="Times the words blocker / major / minor appear in this review file (rough hint, not an exact issue count)"> · blocker {f.sev.blocker} · major {f.sev.major} · minor {f.sev.minor} mentions</span> : null} · {hhmmss(f.mtime)}</span></div>;
   })}</div>;
 }
 

@@ -117,6 +117,14 @@ pre{font:var(--fs-sm)/1.55 var(--mono);background:var(--bg2);border:1px solid va
 .file:hover{background:var(--hover);border-color:color-mix(in srgb,var(--fg) 16%,var(--bd))}
 .file .n{font-weight:500;font-family:var(--mono);font-size:var(--fs-sm)}.file .m{font-size:var(--fs-sm);color:var(--mut)}
 .file.fresh{border-color:color-mix(in srgb,var(--ok) 45%,var(--bd))}
+/* long paths: the file name wraps on its own line, the folder is dimmed under it and cut from the left (the nearest folders stay
+   visible), the meta wraps instead of forcing the row wider; the full path is in the row's tooltip */
+.files{grid-template-columns:minmax(0,1fr)}
+.file{min-width:0;flex-wrap:wrap;align-items:flex-start}
+.file .n{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 220px}
+.file .bn{word-break:break-all}
+.file .dn{font-weight:400;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.file .m{white-space:normal;flex:0 1 auto;text-align:right;overflow-wrap:anywhere}
 .tl{border-left-color:var(--bd)}.tl li{font-size:var(--fs-md)}.tl li code{font:var(--fs-sm) var(--mono);color:var(--mut)}
 .tl li::before{background:var(--raised)}
 .ct{font-size:var(--fs-md)}.ct th,.ct td{border-bottom-color:var(--bd2)}
