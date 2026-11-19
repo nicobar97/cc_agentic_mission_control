@@ -95,7 +95,7 @@ function DiffPanel({ r }: { r: NonNullable<Req> }) {
       <div className="dp-b">
         <div className="dp-list" ref={listRef}>
           {!sum && !err && Array.from({ length: 6 }, (_, i) => <div key={i} className="skel" style={{ height: 46, margin: "6px 8px" }} />)}
-          {sum && !sum.changes.length && <div className="empty" style={{ margin: 8 }}>No recorded change to this file.</div>}
+          {sum && !sum.changes.length && <div className="empty" style={{ margin: 8 }}>No Write / Edit change recorded for this file.<br /><span className="sub">If a shell command changed it (a redirect, <code>sed -i</code>, a script), the transcript keeps the command but not the before / after text, so there is no diff.</span></div>}
           {sum?.changes.map((c, k) => <button key={c.i} className={"dc" + (mode === "one" && k === sel ? " sel" : "")} onClick={() => { setMode("one"); setSel(k); }}>
             <span className="dc-t"><b>{c.tool}</b><span className="ts">{fmtDate(c.t)}</span></span>
             <span className="dc-a">{c.agent}</span>

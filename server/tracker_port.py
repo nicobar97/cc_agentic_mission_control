@@ -16,6 +16,8 @@ import datetime as dt
 import os
 import re
 
+from shellwrites import shell_writes
+
 # tracker.py: HOME_PREFIX. The path prefix trimmed from tool inputs in the activity feed; override with MC_PATH_PREFIX.
 HOME_PREFIX = os.path.expanduser(os.environ.get("MC_PATH_PREFIX", "~/"))
 
@@ -191,6 +193,10 @@ class AgentState:
                 inp = c.get("input") or {}
                 if name in ("Write", "Edit", "NotebookEdit") and isinstance(inp, dict) and inp.get("file_path"):
                     self._wrote(os.path.abspath(str(inp["file_path"])), name, inp, t)
+                elif name == "Bash" and isinstance(inp, dict):
+                    # extension: files a shell command probably writes (redirects, sed -i, cp, python scripts...)
+                    for p in shell_writes(inp.get("command"), d.get("cwd") or ""):
+                        self._wrote(p, "Bash", inp, t)
                 if name == "SubagentHandback":
                     report = (inp if isinstance(inp, dict) else {}).get("message", "")
                     if report:
@@ -206,9 +212,11 @@ class AgentState:
                 self.events.append({"t": iso(t), "kind": "think", "text": short(c["text"], 220)})
 
     def _wrote(self, path, name, inp, t):
-        w = self.written.setdefault(path, {"t": None, "writes": 0, "edits": 0, "facts": None})
+        w = self.written.setdefault(path, {"t": None, "writes": 0, "edits": 0, "shell": 0, "facts": None})
         w["t"] = iso(t) or w["t"]
-        if name == "Write" and isinstance(inp.get("content"), str):
+        if name == "Bash":
+            w["shell"] += 1
+        elif name == "Write" and isinstance(inp.get("content"), str):
             w["writes"] += 1
             w["facts"] = md_facts(path, inp["content"])
         else:
@@ -255,18 +263,19 @@ def deliverables(agent_states, cwd):
     merged = {}
     for st in agent_states:
         for p, w in st.written.items():
-            m = merged.setdefault(p, {"t": None, "writes": 0, "edits": 0, "facts": None})
+            m = merged.setdefault(p, {"t": None, "writes": 0, "edits": 0, "shell": 0, "facts": None})
             if (w["t"] or "") >= (m["t"] or ""):
                 m["t"] = w["t"]
                 m["facts"] = w["facts"] or m["facts"]
             m["writes"] += w["writes"]
             m["edits"] += w["edits"]
+            m["shell"] += w.get("shell", 0)
     out = []
     root = (cwd or "").rstrip("/") + "/"
     for p, m in merged.items():
         name = p[len(root):] if cwd and p.startswith(root) else p.replace(os.path.expanduser("~"), "~")
         f = m["facts"] or {"lines": None, "heads": [], "sev": None, "oq": []}
-        out.append({"name": name, "path": p, "mtime": m["t"], "writes": m["writes"], "edits": m["edits"], **f})
+        out.append({"name": name, "path": p, "mtime": m["t"], "writes": m["writes"], "edits": m["edits"], "shell": m["shell"], **f})
     out.sort(key=lambda f: f["mtime"] or "", reverse=True)
     return out
 

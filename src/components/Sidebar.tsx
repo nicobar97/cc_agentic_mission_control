@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fmtUsd, href, Index, Project, QS, SessionRow, STATIC, useWriteMode, when } from "../lib";
+import { BUILD, fmtUsd, href, Index, Project, QS, SessionRow, STATIC, useWriteMode, when } from "../lib";
 import { Bot, ChevronIcon, Info, Logo, StarIcon } from "./bits";
 import { NewChat } from "./Write";
 
@@ -107,7 +107,9 @@ export function Sidebar({ idx, sel }: { idx: Index | null; sel?: { p?: string; s
     <nav className="side">
       <div className="side-head">
         <div className="brand"><div className="logo"><Logo /></div><div><div className="eyebrow">Claude Code</div><h1>Mission Control</h1>
-          <div className="sub">{idx ? `${idx.projects.length} projects · ${idx.projects.reduce((s, p) => s + p.sessions.length, 0)} chats` : "indexing…"}</div></div></div>
+          <div className="sub">{idx ? `${idx.projects.length} projects · ${idx.projects.reduce((s, p) => s + p.sessions.length, 0)} chats` : "indexing…"}</div>
+          <div className="sub ver" title={`Version ${BUILD.version}, build ${BUILD.build}${BUILD.commit ? ` (commit ${BUILD.commit}${BUILD.dirty ? ", with uncommitted changes" : ""})` : ""}${BUILD.date ? `, built ${BUILD.date}` : ""}`}>
+            v{BUILD.version} · build {BUILD.build}{BUILD.dirty ? "+" : ""}</div></div></div>
         <input ref={ref} type="search" placeholder="Search chats…  ( ⌘K )" value={q} onChange={(e) => setQ(e.target.value)} />
         <NewChat idx={idx} />
       </div>

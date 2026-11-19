@@ -14,11 +14,7 @@ let server = null;
 function fixEnv() {
   const extra = ["/opt/homebrew/bin", "/usr/local/bin", path.join(process.env.HOME || "", ".local/bin")];
   process.env.PATH = [...extra, process.env.PATH || ""].join(":");
-  if (process.env.MC_CLAUDE_BIN) return;
-  try {
-    const p = execFileSync(process.env.SHELL || "/bin/zsh", ["-ilc", "command -v claude"], { encoding: "utf8", timeout: 5000 }).trim().split("\n").pop();
-    if (p && fs.existsSync(p)) process.env.MC_CLAUDE_BIN = p;   // write mode needs it; read-only mode works without
-  } catch (_) { /* no claude found: write mode will say so */ }
+  // the server picks the newest `claude` it finds (runner.py), no slow login-shell lookup needed; MC_CLAUDE_BIN overrides
 }
 
 const freePort = () => new Promise((res, rej) => {

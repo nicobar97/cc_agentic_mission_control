@@ -4,16 +4,18 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 // ---------- types ----------
 export type Tok = { input: number; output: number; cache_write: number; cache_read: number };
 export type Ev = { t: string | null; kind: string; text: string };
+/** App version (package.json) and build (git commit count) baked in at build time; see vite.config.ts. */
+export const BUILD = typeof __MC_BUILD__ !== "undefined" ? __MC_BUILD__ : { version: "dev", build: "0", commit: "", dirty: false, date: "" };
 export type Agent = {
   id: string; label: string; phase: string; status: string; tools: number; tokens: number; first: string | null;
   last: string | null; token_breakdown: Tok; cost: Tok; cost_total: number; priced: boolean; models: string[];
   last_ev: string; last_text: string; events: Ev[]; n_events: number; agent_type: string; resumed?: boolean; stop?: string;
   ctx?: AgentCtx;
 };
-export type AgentCtx = { p: string; s: string; chat: string; project: string; run: string; wf: string | null; run_title: string };
+export type AgentCtx = { p: string; s: string; chat: string; project: string; run: string; wf: string | null; run_title: string; main?: boolean; n_agents?: number; n_running?: number };
 export type Phase = { name: string; total: number; done: number; running: number; cost: number };
 export type FeedEv = Ev & { agent: string; id: string };
-export type FileRow = { name: string; path: string; mtime: string | null; writes: number; edits: number; lines: number | null;
+export type FileRow = { name: string; path: string; mtime: string | null; writes: number; edits: number; shell?: number; lines: number | null;
   heads: string[]; sev: { blocker: number; major: number; minor: number } | null; oq: string[] };
 export type RunSummary = { id: string; title: string; icon: string; status: string; agents: number; start: string | null;
   end: string | null; tokens: number; cost: number; main?: boolean };

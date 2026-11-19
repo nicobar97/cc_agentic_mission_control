@@ -2,7 +2,7 @@
 
 Safety (see README, "Write mode"):
 - argv list only (no shell); the prompt goes through stdin, so it is never parsed as a flag and never shows in `ps`;
-- permission modes limited to default (sent as `manual`), acceptEdits and plan; bypass is refused here too;
+- permission modes limited to default (no flag: the CLI's own default), acceptEdits and plan; bypass is refused here too;
 - cwd must be an existing directory inside the user's home, outside ~/.claude and other dot-dirs, with symlinks resolved;
 - a chat that changed in the last 2 min and is not being written by one of our runs is never resumed in place: only forked;
 - one run per session, at most 3 runs at once;
@@ -21,7 +21,37 @@ import time
 import tracker_port as tp
 
 HOME = os.path.realpath(os.path.expanduser("~"))
-CLAUDE_BIN = os.environ.get("MC_CLAUDE_BIN") or shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
+
+
+def _find_claude():
+    """MC_CLAUDE_BIN wins. Otherwise the NEWEST `claude` among every install we can see: a machine often has two (a stale
+    Homebrew cask first on PATH, the current one in ~/.local/bin), and the stale one rejects newer flags and asks for
+    retired models. Picking the first on PATH used the wrong one."""
+    forced = os.environ.get("MC_CLAUDE_BIN")
+    if forced:
+        return forced
+    dirs = os.environ.get("PATH", "").split(":") + [os.path.expanduser("~/.local/bin"), os.path.expanduser("~/.claude/local"),
+                                                    "/opt/homebrew/bin", "/usr/local/bin"]
+    cands, seen = [], set()
+    for d in dirs:
+        c = os.path.join(d, "claude")
+        r = os.path.realpath(c)
+        if r not in seen and os.path.isfile(r) and os.access(r, os.X_OK):
+            seen.add(r)
+            cands.append(c)
+    best, best_v = None, (-1,)
+    for c in cands:
+        try:
+            out = subprocess.run([c, "--version"], capture_output=True, text=True, timeout=8).stdout
+        except (OSError, subprocess.SubprocessError):
+            continue
+        m = re.search(r"(\d+)\.(\d+)\.(\d+)", out)
+        if m and tuple(map(int, m.groups())) > best_v:
+            best, best_v = c, tuple(map(int, m.groups()))
+    return best or shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
+
+
+CLAUDE_BIN = _find_claude()
 MODES = {"default": "manual", "acceptEdits": "acceptEdits", "plan": "plan"}   # UI name -> CLI value
 FORBIDDEN_MODES = {"bypassPermissions", "dontAsk", "auto"}
 MODELS = ["", "claude-haiku-5-5", "claude-sonnet-5-5", "claude-sonnet-5", "claude-opus-5-5", "claude-opus-5",
@@ -34,6 +64,20 @@ STRIP_ENV = {"CLAUDECODE", "CLAUDE_PID", "CLAUDE_JOB_DIR", "CLAUDE_CODE_SESSION_
              "CLAUDE_CODE_AGENT", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDE_CODE_ENTRYPOINT",
              "CLAUDE_CODE_SESSION_ATTENDED", "CLAUDE_CODE_EXECPATH", "CLAUDE_CODE_HOST_SHORT_TEMP_DIRS"}
 SID_RE = re.compile(r"^[0-9a-fA-F-]{8,64}$")
+_CAPS = None
+
+
+def cli_caps():
+    """What the installed `claude` accepts: newer builds have --permission-prompts, older ones (e.g. 2.0.x) reject it.
+    Probed once from `claude --help`; if the probe fails the flag is assumed to exist."""
+    global _CAPS
+    if _CAPS is None:
+        try:
+            h = subprocess.run([CLAUDE_BIN, "--help"], capture_output=True, text=True, timeout=15, env=clean_env()).stdout
+        except (OSError, subprocess.SubprocessError):
+            h = ""
+        _CAPS = {"prompts": "--permission-prompts" in h if h else True}
+    return _CAPS
 
 
 class Refused(Exception):
@@ -237,7 +281,11 @@ class Runner:
                 raise Refused(409, "A message is already running in this chat. Wait for it, or stop it.", busy=True)
             run = Run(kind, cwd, model, mode, target=sess.id if sess else None, fork=fork)
             argv = [CLAUDE_BIN, "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
-                    "--permission-mode", MODES[mode], "--permission-prompts", "none"]
+                    ]
+            if mode != "default":   # the default mode passes nothing: the CLI's own default, whatever this version calls it
+                argv += ["--permission-mode", MODES[mode]]
+            if cli_caps()["prompts"]:
+                argv += ["--permission-prompts", "none"]
             if model:
                 argv += ["--model", model]
             if kind == "send":

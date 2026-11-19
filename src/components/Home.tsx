@@ -9,6 +9,10 @@ type AgentsResp = { state: string; total: number; agents: Agent[]; feed: (FeedEv
 const ctxLine = (a: Agent) => {
   const c = a.ctx!;
   const proj = (c.project || "").split("/").pop();
+  if (c.main) {   // a main chat: its own agents are counted on it
+    const n = c.n_agents || 0;
+    return ["Main chat", proj, n ? `${n} agent${n === 1 ? "" : "s"}${c.n_running ? ` · ${c.n_running} running` : ""}` : "no agents"].join(" · ");
+  }
   return [c.chat, proj, c.wf || null, a.phase || null].filter(Boolean).join(" · ");
 };
 const firstLine = (s: string) => (s || "").replace(/[#*`>_]/g, "").split("\n").map((x) => x.trim()).find(Boolean) || "";
@@ -49,12 +53,11 @@ export function Home({ idx }: { idx: Index | null }) {
   const all = useMemo(() => [...(running?.agents || []), ...(recent?.agents || [])], [running, recent]);
   const byId = useRef(new Map<string, Agent>());
   byId.current = new Map(all.map((a) => [a.id, a]));
-  const onChat = useCallback((id: string) => { const c = byId.current.get(id)?.ctx; if (c) go({ p: c.p, s: c.s, a: id, from: "home" }); }, []);
+  const onChat = useCallback((id: string) => { const c = byId.current.get(id)?.ctx; if (c) go(c.main ? { p: c.p, s: c.s, from: "home" } : { p: c.p, s: c.s, a: id, from: "home" }); }, []);
   const onOpen = useCallback((id: string, n: number | null) => setOpen({ id, n }), []);
   const match = (a: Agent) => matchAgent(a, filter, q, null, [a.ctx?.chat || "", a.ctx?.project || "", a.ctx?.wf || ""]);
   const run = (running?.agents || []).filter(match), done = (recent?.agents || []).filter(match);
   const feedD = useMemo(() => ({ run: "home", agents: all, feed: running?.feed || [] }), [all, running]);
-  const chats = idx ? idx.projects.flatMap((p) => p.sessions.map((s) => ({ p, s }))).filter((x) => x.s.active).sort((a, b) => b.s.mtime - a.s.mtime) : [];
   const first = useRef(true); useEffect(() => { first.current = false; });
 
   return (
@@ -66,7 +69,7 @@ export function Home({ idx }: { idx: Index | null }) {
           <input ref={qRef} type="search" placeholder="Search agents, chats, activity…  ( / )" value={q} onChange={(e) => setQ(e.target.value)} />
           <div className="seg">{[["all", "All"], ["running", "Running"], ["done", "Done"], ["attention", "Attention"]].map(([f, l]) =>
             <button key={f} className={filter === f ? "on" : ""} onClick={() => setFilter(f)}>{l}</button>)}</div>
-          <Info right label="Legend: home"><span className="li"><b>Running now</b> every subagent and workflow agent still running, in any chat</span><span className="li"><b>Recently finished</b> agents that finished or stopped in the last 24 h, with the first line of their final report</span><span className="li">Cards, bars and the drawer work as in Mission Control: click a card for the agent's chat, the list button or a bar for its timeline</span><span className="li">Keys: <kbd>/</kbd> search · <kbd>esc</kbd> close</span></Info>
+          <Info right label="Legend: home"><span className="li"><b>Running now</b> every subagent and workflow agent still running, in any chat, and every main chat active in the last 2 min</span><span className="li"><b>Main chat</b> cards are the conversations themselves: the line under the name gives the number of their own agents (and how many run); click one to open the chat</span><span className="li"><b>Recently finished</b> agents that finished or stopped in the last 24 h, with the first line of their final report</span><span className="li">Cards, bars and the drawer work as in Mission Control: click a card for the agent's chat, the list button or a bar for its timeline</span><span className="li">Keys: <kbd>/</kbd> search · <kbd>esc</kbd> close</span></Info>
         </div>
       </header>
       <section className="main"><div>
@@ -79,14 +82,6 @@ export function Home({ idx }: { idx: Index | null }) {
           : done.length ? <div className="grid">{done.map((a, i) => <Card key={a.id} a={a} isPast idx={i} first={first.current} onOpen={onOpen} onChat={onChat} ctxLine={ctxLine(a)} lastLine={firstLine(a.last_text) || a.last_ev} />)}</div>
           : <div className="empty">Nothing finished in the last 24 hours.</div>}
         {recent && recent.total > done.length && filter === "all" && !q && <div className="older"><button className="btn" onClick={() => setLimit((l) => l + 24)}>Show more · {recent.total - done.length} older</button></div>}
-        {chats.length > 0 && <>
-          <h2 style={{ marginTop: 24 }}><span>Active chats</span><span>{chats.length}</span></h2>
-          <div className="grid">{chats.map(({ p, s }) => <div key={p.slug + s.id} className={"card " + (s.running ? "running" : "done")} role="button" tabIndex={0}
-            onClick={() => go({ p: p.slug, s: s.id })} onKeyDown={(e) => e.key === "Enter" && go({ p: p.slug, s: s.id })}>
-            <div className="ch"><b>{s.title}</b><span className={"badge " + (s.running ? "running" : "done")}>{s.running ? `${s.running} running` : "active"}</span></div>
-            <div className="meta"><span className="mdl">{p.path.split("/").pop()}</span><span><ChatIcon size={12} /> {s.msgs}</span><span><Bot /> {s.agents}</span><span>💲 {fmtUsd(s.cost)}</span><span>{agoSecs(now / 1000 - s.mtime)}</span></div>
-            <div className="last">{s.prompt || "—"}</div></div>)}</div>
-        </>}
       </div>
         <aside className="panel"><h2><span>Live activity<Info right label="Legend: activity"><span className="li">The latest actions of every running agent, newest first</span><span className="li">Click a name to open that agent's timeline</span></Info></span><span>{when(Date.now() / 1000)}</span></h2>
           <Feed d={feedD} phase={null} q={q} onWho={(id) => setOpen({ id, n: null })} /></aside>

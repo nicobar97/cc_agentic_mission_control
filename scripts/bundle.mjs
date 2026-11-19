@@ -51,6 +51,9 @@ function slim(py) {
 }
 
 run("npm", ["run", "build"]);
+// version = package.json (npm version patch|minor|major); build = git commit count, the same number the UI shows
+const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+const BUILD_NO = execFileSync("git", ["rev-list", "--count", "HEAD"], { cwd: ROOT }).toString().trim();
 const IGNORE = "^/(build|src|scripts|screenshots|release|node_modules|\\.scratch|\\.git|\\.DS_Store|run\\.log|server\\.pid|index\\.html|vite\\.config\\.ts|tsconfig\\.json|README\\.md|CLAUDE\\.local\\.md)";
 for (const arch of archs) {
   if (!TRIPLE[arch]) throw new Error(`unknown arch ${arch} (arm64 or x64)`);
@@ -58,13 +61,13 @@ for (const arch of archs) {
   solidify(path.join(dir, "python"));
   slim(path.join(dir, "python"));
   run("npx", ["electron-packager", ".", "Mission Control", "--platform=darwin", `--arch=${arch}`, "--out=release", "--overwrite",
-    "--prune=false", "--asar=false", "--icon=build/icon.icns", `--extra-resource=${path.join(dir, "python")}`, `--ignore=${IGNORE}`]);
+    "--prune=false", "--asar=false", "--icon=build/icon.icns", `--app-version=${VERSION}`, `--build-version=${BUILD_NO}`, `--extra-resource=${path.join(dir, "python")}`, `--ignore=${IGNORE}`]);
   const app = path.join("release", `Mission Control-darwin-${arch}`, "Mission Control.app");
   // The packager's signature doesn't seal the files we add (Python, app code), so a quarantined copy reads as "damaged".
   // An ad-hoc signature over the whole bundle makes it valid: macOS then offers "Open Anyway" instead. (No Apple account needed.)
   run("codesign", ["--force", "--deep", "--sign", "-", app]);
   run("codesign", ["--verify", "--deep", "--strict", app]);
-  const zip = path.join("release", `Mission-Control-${arch}.zip`);
+  const zip = path.join("release", `Mission-Control-${VERSION}-b${BUILD_NO}-${arch}.zip`);
   fs.rmSync(path.join(ROOT, zip), { force: true });
   run("ditto", ["-c", "-k", "--keepParent", app, zip]);   // ditto keeps the symlinks and attributes a .app needs; plain zip breaks it
   console.log(`\n${zip}  (${(fs.statSync(path.join(ROOT, zip)).size / 1e6).toFixed(0)} MB)`);

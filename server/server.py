@@ -361,10 +361,24 @@ class Handler(BaseHTTPRequestHandler):
             for slug, sessions in STORE.projects.items():
                 path = None
                 for s in sessions.values():
-                    if not s.agents:
-                        continue
+                    if now - s.mtime > hours * 3600:
+                        continue   # nothing in this chat (main or agents) can be recent enough
                     path = path or STORE.project_path(slug, sessions)
-                    for run in STORE.session_runs(s):
+                    runs = STORE.session_runs(s) if s.agents else []
+                    n_run = sum(a["status"] == "running" for r in runs for a in r["agents"])
+                    # the main chat is listed like an agent, tagged "main chat", with its own agents counted on it
+                    main = s.main_run()
+                    if main:
+                        a = {**main["agents"][0], "id": "main:" + s.id, "label": s.info.title(), "agent_type": "main chat"}
+                        running = a["status"] == "running"
+                        last = st.tp.ts(a["last"] or "")
+                        if (state == "running") == running and (running or (last and now - last.timestamp() <= hours * 3600)):
+                            ctx = {"p": slug, "s": s.id, "chat": s.info.title(), "project": path, "run": "main", "wf": None,
+                                   "run_title": "Main chat", "main": True, "n_agents": len(s.agents), "n_running": n_run}
+                            rows.append({**a, "ctx": ctx})
+                            if running:
+                                feed += [{**e, "agent": a["label"], "id": a["id"], "ctx": ctx} for e in a["events"][-20:] if e["t"]]
+                    for run in runs:
                         for a in run["agents"]:
                             running = a["status"] == "running"
                             if (state == "running") != running:
